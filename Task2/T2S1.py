@@ -25,17 +25,29 @@ def is_spouse(husband, wife):
 def repack_csv(csvreader):
     pass_list = [Passenger(row) for row in csvreader]
 
-    # adding spouse id onboard
+    # adding onboard spouse id, spouse name is later ignored since it was
+    # probably irrelevant to the survival probability
+
     for passenger, ind in zip(pass_list, range(len(pass_list))):
         passenger.id = ind
+        probable_spouse = False
+        if len(passenger.name.split(' ')) > 3:      # this could be a potentional spouse
+            passenger.spouse_name = passenger.name.split(' ')[0]
+            probable_spouse = True
+            # this is safe because we later ommit the spouse name attribute
+
         if passenger.spouse_name:
             spouse = next((x for x in pass_list if is_spouse(x, passenger)), None)
             if spouse:
                 spouse.spouse_name = passenger.name.split(' ')[0]
                 spouse.spouse_id = pass_list.index(passenger)
                 passenger.spouse_id = pass_list.index(spouse)
+                if probable_spouse:
+                    passenger.name = ' '.join(passenger.name.split(' ')[2:])
 
-    # estimate age based on title and passenger class
+    # age estimation based on the median age of a specific passenger title and p_class set
+
+    # firstly we remove the badly loaded data and change it with the previous neighbour value
     bad_data = [x for x in pass_list if not '1' <= x.p_class <= '3']
     for bad_elem in bad_data:
         ind = pass_list.index(bad_elem)
@@ -50,6 +62,30 @@ def repack_csv(csvreader):
             for elem in pass_list:
                 if elem.age == -1:
                     elem.age = np.median(age_list)
+
+    # title estimation based on age and sex
+    median_title_age = []
+    for title in titles_final[0:4]:
+        age_list = np.array([x.age for x in pass_list if x.title == title])
+        median_title_age.append(np.median(age_list))
+
+    #           Mr      Mrs     Ms      Master
+    # mean:     36.35,  38.5,   29.7,   20.9
+    # median:   41,     41,     36,     11
+    # a Master is someone who is male and younger than 3/4 * 11 + 1/4 * 41 = 21
+    # a Miss is someone who is female and younger than 3/4 * 36 + 1/4 * 41 = 37
+
+    ms_age_threshold = (median_title_age[1] + median_title_age[2] * 3)/4
+    mr_age_threshold = (median_title_age[0] + median_title_age[3] * 3)/4
+
+    for elem in pass_list:
+        if not elem.title:
+            if elem.sex == 'male':
+                elem.title = 'Mr' if elem.age > mr_age_threshold else 'Master'
+            else:
+                elem.title = 'Mrs' if elem.age > ms_age_threshold else 'Ms'
+
+    # save the extracted data to a new csv file
     with open('Task2/Data/Titanic_dataset_extended.csv', 'w', newline='') as csvfile:
         fieldnames = ['id', 'surname', 'title', 'name', 'age', 'sex', 'p_class', 'spouse_id', 'survived']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
