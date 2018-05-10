@@ -67,8 +67,8 @@ def repack_csv(csvreader):
 
             for elem in pass_list:
                 if elem.age == -1:
-                    # TODO add stddev
-                    elem.age = np.median(age_list)
+                    std_dev = np.std(age_list)
+                    elem.age = round(np.median(age_list) + 0.9*std_dev*np.random.randn(1)[0])
 
     # title estimation based on age and sex
     median_title_age = []
@@ -131,7 +131,7 @@ class Passenger:
             rest = ' '.join(csv_row['Name'].split(' ')[1:])
 
         if len(rest.split('(')) > 1:
-            self.title = rest.split(' ')[0]
+            self.title = rest.split(' ')[0] if rest.split(' ')[0] in titles else 'Master'
             if self.title == 'the':
                 self.title = 'Lady'
 
@@ -160,6 +160,9 @@ class Passenger:
 
         self.spouse_id = None
         self.family_id = None
+
+        if self.title == 'Thomas':
+            print('hi')
 
     def __str__(self):
         return '{}, {} {} a:{} s:{} sur:{}'.format(self.title, self.surname, self.name,

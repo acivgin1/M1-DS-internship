@@ -40,3 +40,4 @@ tmtagsHistory
 *.sublime-workspace
 .bundle
 .csv
+/Task2/Data/Titanic_dataset.csv
