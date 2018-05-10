@@ -108,7 +108,7 @@ def repack_csv(csvreader):
                     pass_list[ids].family_id = possible_elem_fam_ids[0]
 
     # save the extracted data to a new csv file
-    with open('Task2/Data/Titanic_dataset_extended.csv', 'w', newline='') as csvfile:
+    with open('Task2/Data/Titanic_dataset_extended_1.csv', 'w', newline='') as csvfile:
         fieldnames = ['id', 'surname', 'title', 'name', 'age', 'sex', 'p_class', 'spouse_id', 'family_id', 'survived']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
