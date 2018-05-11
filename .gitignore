@@ -19,6 +19,7 @@
 *.rar
 #*.tar
 *.zip
+*.csv
 
 # Logs and databases #
 ######################
@@ -39,6 +40,3 @@ tmtagsHistory
 *.sublime-project
 *.sublime-workspace
 .bundle
-.csv
-/Task2/Data
-
