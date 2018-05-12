@@ -107,10 +107,11 @@ def repack_csv(csvreader):
 
                 for ids in possible_elem_fam_ids:
                     pass_list[ids].family_id = possible_elem_fam_ids[0]
+                    pass_list[ids].fam_size = len(possible_elem_fam_ids)
 
     # save the extracted data to a new csv file
     with open('Data/Titanic_dataset_extended_1.csv', 'w', newline='') as csvfile:
-        fieldnames = ['id', 'surname', 'title', 'name', 'age', 'sex', 'p_class', 'spouse_id', 'family_id', 'survived']
+        fieldnames = ['surname', 'title', 'name', 'age', 'sex', 'p_class', 'fam_size', 'survived']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
 
         writer.writeheader()
@@ -121,6 +122,7 @@ def repack_csv(csvreader):
 class Passenger:
     def __init__(self, csv_row):
         self.id = None
+        self.fam_size = 0
         self.surname = csv_row['Name'].split(',')[0].split('(')[0]
         # there is the example of surname (surname_alt) with surname_alt being the alternative surname pronounciation
         # or the maiden name, we ommit it
