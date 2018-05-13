@@ -2,19 +2,16 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import pickle
 
-titles_final = ['Mr', 'Mrs', 'Miss', 'Ms', 'Master',
-                'Madame', 'Mlle',
-                'Captain', 'Colonel', 'Col', 'Major',
-                'Sir', 'Lady',
-                'Dr',
-                'Rev']
+titles_final = ['Mr', 'Mrs', 'Ms', 'Master', 'Col', 'Sir', 'Lady', 'Dr', 'Rev']
 
 df = pd.read_csv('Data/Titanic_dataset_extended_2.csv', na_values='')
 df['died'] = np.ones((df.shape[0], 1), dtype=np.uint8) - df['survived'].as_matrix().reshape((-1, 1))
 df['ones'] = np.ones((df.shape[0], 1), dtype=np.uint8)
 
 age_intervals = [0, 1, 3, 6, 12, 18, 22, 27, 32, 37, 42, 47, 52, 57, 62, 72]
+
 df['age_interval'] = pd.cut(df.age, age_intervals)
 
 # survive_title = df.groupby(['title']).agg({'survived': ['sum'], 'died': ['sum']})
@@ -79,7 +76,8 @@ features = df.as_matrix()
 #         plt.plot(elem[1], elem[0], 'bv')
 #
 # fig.savefig('Data/Images/Age_Title.png', bbox_inches='tight')
-#
+
+
 # # plot age title class
 # fig = plt.figure()
 # ax = fig.add_subplot(111, projection='3d')
@@ -95,8 +93,15 @@ features = df.as_matrix()
 #
 # for elem, survived in zip(features, labels):
 #     if survived:
-#         ax.scatter(elem[2], elem[1], elem[0], color='r', marker='o')
+#         ax.scatter(elem[2], elem[1], elem[0], s=(1.2*elem[3]+2)**2, color='r', marker='o')
 #     else:
-#         ax.scatter(elem[2], elem[1], elem[0], color='b', marker='v')
+#         ax.scatter(elem[2], elem[1], elem[0], s=(1.2*elem[3]+2)**2, color='b', marker='o')
 #
 # fig.savefig('Data/Images/Scatter.png', bbox_inches='tight')
+#
+# with open('Data/Pickles/myplot.pickle','wb') as fid:
+#     pickle.dump(ax, fid)
+
+# with open('Data/Pickles/myplot.pickle','rb') as fid:
+#     ax = pickle.load(fid)
+# plt.show()

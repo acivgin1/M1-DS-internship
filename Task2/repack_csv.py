@@ -80,7 +80,7 @@ def repack_csv(pass_list, num_of_testing):
             age_list = np.array([x.age for x in pass_list if x.title == title and x.p_class == i and x.age > 0])
             for elem in pass_list:
                 if elem.age == -1 and elem.title == title and elem.p_class == i:
-                    elem.age = np.mean(age_list) + 0 * np.std(age_list) * np.random.randn(1)[0]
+                    elem.age = np.median(age_list) + 0.9 * np.std(age_list) * np.random.randn(1)[0]
 
     plot_age_histograms(pass_list, 'after')
 
@@ -102,9 +102,9 @@ def repack_csv(pass_list, num_of_testing):
     for elem in pass_list:
         if not elem.title:
             if elem.sex == 'male':
-                elem.title = 'Mr' # if elem.age > mr_age_threshold else 'Master'
+                elem.title = 'Mr'  # if elem.age > mr_age_threshold else 'Master'
             else:
-                elem.title = 'Mrs' # if elem.age > ms_age_threshold else 'Ms'
+                elem.title = 'Mrs'  # if elem.age > ms_age_threshold else 'Ms'
 
     # find family relations,if a person is onboard with someone with the same surname and
     # is in the same passenger class (families always travel together) they're probably related
@@ -122,8 +122,8 @@ def repack_csv(pass_list, num_of_testing):
                 pass_list[ids].fam_size = len(possible_elem_fam_ids)
 
     # save the extracted data to a new csv file
-    with open('Data/Titanic_dataset_extended_2.csv', 'w', newline='') as training, \
-            open('Data/Titanic_dataset_testing_2.csv', 'w', newline='') as testing:
+    with open('Data/Titanic_dataset_extended_3.csv', 'w', newline='') as training, \
+            open('Data/Titanic_dataset_testing_3.csv', 'w', newline='') as testing:
 
         fieldnames = ['surname', 'title', 'name', 'age', 'sex', 'p_class', 'fam_size', 'survived']
         training_writer = csv.DictWriter(training, fieldnames=fieldnames)
