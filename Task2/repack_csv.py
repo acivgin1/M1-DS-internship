@@ -15,7 +15,7 @@ ms = ['Ms', 'Miss', 'Mlle']
 
 older_male = ['Mr', 'Col', 'Dr', 'Rev', 'Sir']
 
-titles_final = ['Mr', 'Mrs', 'Ms', 'Master', 'Col', 'Sir', 'Lady', 'Dr', 'Rev']
+titles_final = ['Mr', 'Mrs', 'Ms', 'Master', 'Dr', 'Rev', 'Col', 'Sir', 'Lady']
 
 
 def is_spouse(husband, wife):
@@ -39,7 +39,7 @@ def plot_age_histograms(pass_list, name):
         ax.savefig('Data/Images/{}{}_pclass histogram.png'.format(i, name), bbox_inches='tight')
 
 
-def repack_csv(pass_list, num_of_testing):
+def repack_csv(filename, pass_list, num_of_testing, mean=True, std_dev_scale=0.2, better_title=True):
     # # adding onboard spouse id, spouse name is later ignored since it was
     # # probably irrelevant to the survival probability
     # for passenger in pass_list:
@@ -74,15 +74,16 @@ def repack_csv(pass_list, num_of_testing):
     for elem in pass_list:
         elem.p_class = int(elem.p_class)
 
-    plot_age_histograms(pass_list, 'before')
+    # plot_age_histograms(pass_list, 'before')
     for title in titles_final:
         for i in range(1, 4):
             age_list = np.array([x.age for x in pass_list if x.title == title and x.p_class == i and x.age > 0])
             for elem in pass_list:
                 if elem.age == -1 and elem.title == title and elem.p_class == i:
-                    elem.age = np.median(age_list) + 0.9 * np.std(age_list) * np.random.randn(1)[0]
+                    base = np.mean(age_list) if mean else np.median(age_list)
+                    elem.age = base + std_dev_scale * np.std(age_list) * np.random.randn(1)[0]
 
-    plot_age_histograms(pass_list, 'after')
+    # plot_age_histograms(pass_list, 'after')
 
     # title estimation based on age and sex
     median_title_age = []
@@ -102,9 +103,9 @@ def repack_csv(pass_list, num_of_testing):
     for elem in pass_list:
         if not elem.title:
             if elem.sex == 'male':
-                elem.title = 'Mr'  # if elem.age > mr_age_threshold else 'Master'
+                elem.title = 'Mr' if elem.age > mr_age_threshold and better_title else 'Master'
             else:
-                elem.title = 'Mrs'  # if elem.age > ms_age_threshold else 'Ms'
+                elem.title = 'Mrs' if elem.age > ms_age_threshold and better_title else 'Ms'
 
     # find family relations,if a person is onboard with someone with the same surname and
     # is in the same passenger class (families always travel together) they're probably related
@@ -122,8 +123,8 @@ def repack_csv(pass_list, num_of_testing):
                 pass_list[ids].fam_size = len(possible_elem_fam_ids)
 
     # save the extracted data to a new csv file
-    with open('Data/Titanic_dataset_extended_3.csv', 'w', newline='') as training, \
-            open('Data/Titanic_dataset_testing_3.csv', 'w', newline='') as testing:
+    with open('{}_training.csv'.format(filename), 'w', newline='') as training, \
+            open('{}_testing.csv'.format(filename), 'w', newline='') as testing:
 
         fieldnames = ['surname', 'title', 'name', 'age', 'sex', 'p_class', 'fam_size', 'survived']
         training_writer = csv.DictWriter(training, fieldnames=fieldnames)
@@ -192,15 +193,24 @@ class Passenger:
         return dict(zip(fieldnames, attr_list))
 
 
+def main():
+    i = 1
+    for mean in [False, True]:
+        for std_dev_scale in [0, 0.2, 0.4, 0.6, 0.8]:
+            for better_title in [False, True]:
+                with open('Data/Titanic_dataset.csv') as training, open('Data/Titanic_dataset_for_testing.csv') as testing:
+                    titanic_training_reader = csv.DictReader(training)
+                    titanic_testing_reader = csv.DictReader(testing)
+
+                    training_pass = [Passenger(x) for x in titanic_training_reader]
+                    testing_pass = [Passenger(x) for x in titanic_testing_reader]
+                    training_pass.extend(testing_pass)
+
+                    filename = 'Data/Datasets/Titanic_{}'.format(i)
+                    i += 1
+
+                    repack_csv(filename, training_pass, len(testing_pass), mean, std_dev_scale, better_title)
+
+
 if __name__ == '__main__':
-    with open('Data/Titanic_dataset.csv') as training, open('Data/Titanic_dataset_for_testing.csv') as testing:
-
-        titanic_training_reader = csv.DictReader(training)
-        titanic_testing_reader = csv.DictReader(testing)
-
-        training_pass = [Passenger(x) for x in titanic_training_reader]
-        testing_pass = [Passenger(x) for x in titanic_testing_reader]
-        training_pass.extend(testing_pass)
-
-        repack_csv(training_pass, len(testing_pass))
-
+    main()

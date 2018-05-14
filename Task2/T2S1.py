@@ -71,9 +71,9 @@ def find_spouses(elem, data):
             elem['Spouse_id'] = spouse_id
             if probable_spouse:
                 elem['Name'] = ' '.join(elem['Name'].split(' ')[2:])
+    return elem
 
 
-df = pd.read_csv('Task2/Data/Titanic_dataset.csv', na_values='')
+df = pd.read_csv('Data/Titanic_dataset.csv', na_values='')
 df = add_name_data(df)
-df1 = df.apply(lambda x: find_spouses(x, df), axis=1)
-
+df = df.apply(lambda x: find_spouses(x, df), axis=1)
