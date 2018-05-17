@@ -1,4 +1,5 @@
 import csv
+import os
 import operator
 
 import numpy as np
@@ -14,30 +15,12 @@ COL = ['Captain', 'Colonel', 'Col', 'Major']
 MRS = ['Mrs', 'Madame']
 MS = ['Ms', 'Miss', 'Mlle']
 
-OLDER_MALE = ['Mr', 'Col', 'Dr', 'Rev', 'Sir']
-
 TITLES_FINAL = ['Mr', 'Mrs', 'Ms', 'Master', 'Dr', 'Rev', 'Col', 'Sir', 'Lady']
 
 
-def is_spouse(husband, wife):
-    return husband.surname == wife.surname and \
-           husband.name.split(' ')[0] == wife.spouse_name and \
-           husband.title in OLDER_MALE
-
-
-def plot_age_histograms(pass_list, name):
-    for i in range(1, 4):
-        ax = plt.figure()
-        legends = []
-        for title in TITLES_FINAL[0:4]:
-            age_list = np.array([x.age for x in pass_list if x.title == title and x.p_class == i and x.age > 0])
-            legends.append('{} Class: {} Title: {}'.format(name, i, title))
-            plt.hist(age_list, alpha=0.5, bins=15)
-        plt.legend(legends)
-        plt.title('{}. Class PDF'.format(i))
-        plt.xlabel('Age [years]')
-        plt.ylabel('Age frequency')
-        ax.savefig('Data/Images/{}{}_pclass histogram.png'.format(i, name), bbox_inches='tight')
+def create_dir(directory):
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 
 def repack_csv(filename, pass_list, num_of_testing, mean=True, std_dev_scale=0.2, better_title=True):
@@ -53,7 +36,6 @@ def repack_csv(filename, pass_list, num_of_testing, mean=True, std_dev_scale=0.2
     for elem in pass_list:
         elem.p_class = int(elem.p_class)
 
-    # plot_age_histograms(pass_list, 'before')
     for title in TITLES_FINAL:
         for i in range(1, 4):
             age_list = np.array([x.age for x in pass_list if x.title == title and x.p_class == i and x.age > 0])
@@ -62,19 +44,11 @@ def repack_csv(filename, pass_list, num_of_testing, mean=True, std_dev_scale=0.2
                     base = np.mean(age_list) if mean else np.median(age_list)
                     elem.age = base + std_dev_scale * np.std(age_list) * np.random.randn(1)[0]
 
-    # plot_age_histograms(pass_list, 'after')
-
     # title estimation based on age and sex
     median_title_age = []
     for title in TITLES_FINAL[0:4]:
         age_list = np.array([x.age for x in pass_list if x.title == title])
         median_title_age.append(np.median(age_list))
-
-    #           Mr      Mrs     Ms      Master
-    # mean:     36.35,  38.5,   29.7,   20.9
-    # median:   41,     41,     36,     11
-    # a Master is someone who is male and younger than 3/4 * 11 + 1/4 * 41 = 21
-    # a Miss is someone who is female and younger than 3/4 * 36 + 1/4 * 41 = 37
 
     ms_age_threshold = (median_title_age[1] + median_title_age[2] * 3) / 4
     mr_age_threshold = (median_title_age[0] + median_title_age[3] * 3) / 4
@@ -92,13 +66,9 @@ def repack_csv(filename, pass_list, num_of_testing, mean=True, std_dev_scale=0.2
         if elem.family_id:
             continue
 
-        possible_elem_fam_list = [x for x in pass_list if x.surname == elem.surname and x.p_class == elem.p_class]
-        if len(possible_elem_fam_list) > 1:
-            possible_elem_fam_list.sort(key=operator.attrgetter('age'), reverse=True)
-            possible_elem_fam_ids = [x.id for x in possible_elem_fam_list]
-
+        possible_elem_fam_ids = [x.id for x in pass_list if x.surname == elem.surname and x.p_class == elem.p_class]
+        if len(possible_elem_fam_ids) > 1:
             for ids in possible_elem_fam_ids:
-                # pass_list[ids].family_id = possible_elem_fam_ids[0]
                 pass_list[ids].fam_size = len(possible_elem_fam_ids)
 
     # save the extracted data to a new csv file
@@ -163,16 +133,13 @@ class Passenger:
         self.spouse_id = None
         self.family_id = None
 
-    def __str__(self):
-        return '{}, {} {} a:{} s:{} sur:{}'.format(self.title, self.surname, self.name,
-                                                   self.age, self.sex, self.survived)
-
     def to_dictionary(self, fieldnames):
         attr_list = [self.__dict__[x] for x in fieldnames]
         return dict(zip(fieldnames, attr_list))
 
 
 def main():
+    create_dir('Data/Datasets')
     i = 1
     for mean in [False, True]:
         for std_dev_scale in [0, 0.2, 0.4, 0.6, 0.8]:
