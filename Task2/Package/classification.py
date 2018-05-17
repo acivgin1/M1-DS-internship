@@ -6,8 +6,8 @@ import numpy as np
 import pandas as pd
 from sklearn import preprocessing
 from sklearn import tree, linear_model, svm, naive_bayes
-from sklearn.metrics import precision_recall_fscore_support, accuracy_score
-from sklearn.model_selection import GridSearchCV
+from sklearn.metrics import accuracy_score
+from sklearn.model_selection import GridSearchCV, cross_val_score
 
 warnings.filterwarnings('ignore')
 
@@ -15,25 +15,28 @@ TITLES_FINAL = ['Mr', 'Mrs', 'Ms', 'Master', 'Col', 'Sir', 'Lady', 'Dr', 'Rev']
 AGE_INTERVALS = [6, 18, 32, 52, 72, 100]
 DATASET_IDS = [17, 14, 8, 13]
 
-# Classifier = collections.namedtuple('Classifier', 'model name params data_format_params dataset_params')
+# Classifier = collections.namedtuple('Classifier', 'model name model_params data_format_params dataset_params')
 Classifier_result = collections.namedtuple('Classifier_test_result', 'classifier accuracy prediction')
 Classifier_cv_result = collections.namedtuple('Classifier_cv_result', 'classifier f1_score')
 
 
+# a simple structure for allowing mutable attributes
 class Classifier:
-    def __init__(self, model, name, params, data_format_params, dataset_params):
+    def __init__(self, model, name, model_params, data_format_params, dataset_params):
         self.model = model
         self.model_cv = None
         self.name = name
-        self.params = params
+        self.model_params = model_params
         self.data_format_params = data_format_params
         self.dataset_params = dataset_params
 
 
+# converts a continuous scalar to a categorical variable
 def age_to_group(age):
     return float(next(x[0] + 1 for x in enumerate(AGE_INTERVALS) if x[1] >= age))
 
 
+# takes filename and data_format_params and loads training data from disk
 def get_training_data(filename, scale_data, delete_fam_size, group_by_age):
     df = pd.read_csv('{}_training.csv'.format(filename), na_values='')
 
@@ -46,19 +49,20 @@ def get_training_data(filename, scale_data, delete_fam_size, group_by_age):
     df['title'] = df['title'].apply(lambda x: TITLES_FINAL.index(x) + 1)
 
     if group_by_age:
-        df['age'] = df['age'].apply(age_to_group)
+        df['age'] = df['age'].apply(age_to_group).astype(float)
 
     if scale_data:
         if not group_by_age:
-            df['age'] = preprocessing.scale(df['age'])
+            df['age'] = preprocessing.scale(df['age'].astype(float))
         if not delete_fam_size:
-            df['fam_size'] = preprocessing.scale(df['fam_size'])
+            df['fam_size'] = preprocessing.scale(df['fam_size'].astype(float))
 
     data = df.as_matrix()
     return data, labels
 
 
-def get_all_data(filename, scale_data, delete_fam_size, group_by_age):
+# takes filename and data_format_params and loads training and test data from disk
+def get_training_and_test_data(filename, scale_data, delete_fam_size, group_by_age):
     df1 = pd.read_csv('{}_training.csv'.format(filename), na_values='')
     df2 = pd.read_csv('{}_testing.csv'.format(filename), na_values='')
 
@@ -92,7 +96,7 @@ def get_all_data(filename, scale_data, delete_fam_size, group_by_age):
     return data, labels, data_t, labels_t
 
 
-# gets classifier tuple, finds and sets params (model parameters) and returns classifier_cv_result
+# takes classifier tuple and data, cv_searches and sets model_params and returns classifier_cv_result
 def tune_classifier_params(classifier, data, labels):
     if classifier.model_cv:
         classifier.model_cv.fit(data, labels)
@@ -100,18 +104,14 @@ def tune_classifier_params(classifier, data, labels):
         classifier_cv_result = Classifier_cv_result(classifier=classifier,
                                                     f1_score=classifier.model_cv.best_score_)
     else:
-        classifier.model.fit(data, labels)
-        model_prediction = classifier.model.predict(data)
-        f1_score = precision_recall_fscore_support(labels, model_prediction, average='binary')
-
+        f1_score = cross_val_score(classifier.model, data, labels, scoring='f1', cv=4, n_jobs=3).mean()
         classifier.params = classifier.model.get_params()
         classifier_cv_result = Classifier_cv_result(classifier=classifier,
-                                                    f1_score=f1_score[2])
+                                                    f1_score=f1_score)
     return classifier_cv_result
 
 
-# gets list of classifiers and param_grids,
-# then finds the best data_format_params for classifiers and returns classifier_cv_result
+# takes list of classifiers and param_grids, cv_searches and sets data_format_params and returns classifier_cv_result
 def tune_classifier_data_format_params(classifier, filename):
     best_f1_score = 0
     best_classifier_cv_result = None
@@ -134,8 +134,7 @@ def tune_classifier_data_format_params(classifier, filename):
     return best_classifier_cv_result
 
 
-# filename = 'Data/Datasets/Titanic_{}'.format(i)
-# gets list of classifiers and param_grids and finds best dataset_params
+# takes list of classifiers and param_grids, cv searches and sets dataset_params and return classifier_cv_result
 def tune_classifier_dataset_params(classifier, filename):
     best_f1_score = 0
     best_classifier_cv_result = None
@@ -156,13 +155,14 @@ def tune_classifier_dataset_params(classifier, filename):
     return best_classifier_cv_result
 
 
+# converts dataset_params to integer representing that dataset id
 def dataset_params_to_dataset_id(dataset_params):
     mean, std_dev_scale, better_title = dataset_params
     dataset_id = 10*mean + 10*std_dev_scale + better_title + 1
     return int(dataset_id)
 
 
-# gets classifier tuple, tests model and return classifier_result
+# takes classifier tuple, tests model and returns classifier_result
 def test_model(classifier, data, labels, data_t, labels_t):
     classifier.model.fit(data, labels)
 
@@ -179,14 +179,7 @@ def test_model(classifier, data, labels, data_t, labels_t):
     return classifier_result
 
 
-def test_models(classifiers, data, labels, data_t, labels_t):
-    classifier_results = []
-    for classifier in classifiers:
-        classifier_result = test_model(classifier, data, labels, data_t, labels_t)
-        classifier_results.append(classifier_result)
-    return classifier_results
-
-
+# creates list of classifier tuples and param_grids
 def get_classifiers_and_param_grids():
     dec_tree_params = {'max_depth': np.arange(2, 10)}
     dec_tree_clas = tree.DecisionTreeClassifier()
@@ -202,7 +195,7 @@ def get_classifiers_and_param_grids():
     logreg_clas = linear_model.LogisticRegression()
 
     models = [dec_tree_clas, gnb_clas, svm_clas, logreg_clas]
-    names = ['Decision tree', 'Support Vector Machine', 'Gaussian Naive Bayes', 'Logistic Regression']
+    names = ['Decision tree', 'Gaussian Naive Bayes', 'Support Vector Machine', 'Logistic Regression']
 
     sparse_param_grids = [dec_tree_params, gnb_params, svm_params, logreg_params]
 
@@ -211,6 +204,7 @@ def get_classifiers_and_param_grids():
     return classifiers, sparse_param_grids
 
 
+# generates a new n-dim param_grid with n*num points around the last model_param n-dim point
 def generate_param_grid(model_params, num, use_logspace):
     param_grid = {}
     for key, value in model_params.items():
@@ -226,6 +220,8 @@ def generate_param_grid(model_params, num, use_logspace):
     return param_grid
 
 
+# fine tunes a classifier using dataset_params and data_format_params from classifier_cv_result
+# and returns classifier_result
 def fine_tune_classifier_params(classifier_cv_result, filename):
     data_id = dataset_params_to_dataset_id(classifier_cv_result.classifier.dataset_params)
     filename = '{}_{}'.format(filename, data_id)
@@ -233,6 +229,7 @@ def fine_tune_classifier_params(classifier_cv_result, filename):
     scale_data, delete_fam_size, group_by_age = classifier_cv_result.classifier.data_format_params
     data, labels = get_training_data(filename, scale_data, delete_fam_size, group_by_age)
 
+    # can't generate float param_grid when dealing with integer attributes
     use_logspace = classifier_cv_result.classifier.name != 'Decision tree'
     param_grid = generate_param_grid(classifier_cv_result.classifier.params, 5, use_logspace)
 
@@ -247,6 +244,7 @@ def fine_tune_classifier_params(classifier_cv_result, filename):
     return classifier_cv_result
 
 
+# this is a work in progress main method that does hyper params and model params tuning and testing of different models
 def main(fine_tune_iterations=1):
     classifiers, param_grids = get_classifiers_and_param_grids()
     for classifier, param_grid in zip(classifiers, param_grids):
@@ -268,7 +266,7 @@ def main(fine_tune_iterations=1):
 
         test_filename = '{}_{}'.format(filename, dataset_params_to_dataset_id(classifier_cv_result.classifier.dataset_params))
         scale_data, delete_fam_size, group_by_age = classifier_cv_result.classifier.data_format_params
-        data, labels, data_t, labels_t = get_all_data(test_filename, scale_data, delete_fam_size, group_by_age)
+        data, labels, data_t, labels_t = get_training_and_test_data(test_filename, scale_data, delete_fam_size, group_by_age)
 
         classifier_result = test_model(classifier, data, labels, data_t, labels_t)
         print(classifier_result)
