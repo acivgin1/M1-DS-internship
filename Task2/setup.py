@@ -4,16 +4,18 @@ requirements = [
     'numpy',
     'pandas',
     'scikit-learn',
-    'matplotlib'
+    'matplotlib',
+    'scipy'
 ]
 
 setup(
-    name='ds-internship-task2',
+    name='ds_internship_task2',
     version='0.1',
     url='https://github.com/acivgin1/M1-DS-internship',
     description='Testing standard classifiers on titanic dataset',
+    entry_point={'console_scripts': ['run-all=ds_internship_task2.command_line:main']},
     author='Amar Civgin',
     author_email='amar.civgin@gmail.com',
-    packages=['ds-internship-task2'],
+    packages=['ds_internship_task2'],
     install_requires=requirements
 )
