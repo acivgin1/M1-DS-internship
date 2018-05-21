@@ -3,7 +3,7 @@ import csv
 
 import numpy as np
 
-DATASET_FILENAME = 'Data/Titanic_dataset'
+DATASET_FILENAME = 'Titanic_dataset'
 
 TITLES = ['Mr', 'Mrs', 'Miss', 'Ms', 'Master',
           'Madame', 'Mlle',
@@ -105,7 +105,7 @@ def create_new_dataset(filename, pass_list, num_of_testing, mean, std_dev_scale,
                 elem.title = 'Mrs' if elem.age > ms_age_threshold and better_title else 'Ms'
 
     for elem in pass_list:
-        if elem.family_id:
+        if elem.fam_size:
             continue
 
         possible_elem_fam_ids = [x.id
@@ -133,8 +133,14 @@ def create_new_dataset(filename, pass_list, num_of_testing, mean, std_dev_scale,
             testing_writer.writerow(elem.to_dictionary(fieldnames))
 
 
-def create_new_datasets(filename=DATASET_FILENAME):
-    create_dir('Data/Datasets')
+def create_new_datasets(filename=DATASET_FILENAME, data_path=None):
+    if data_path is None:
+        cur_path = os.path.dirname(__file__)
+        data_path = os.path.relpath('../Data', cur_path)
+
+    create_dir('{}/Datasets'.format(data_path))
+    filename = '{}/{}'.format(data_path, filename)
+
     i = 1
     for mean in [False, True]:
         for std_dev_scale in [0, 0.2, 0.4, 0.6, 0.8]:
@@ -149,7 +155,7 @@ def create_new_datasets(filename=DATASET_FILENAME):
                     testing_pass = [Passenger(x) for x in titanic_testing_reader]
                     training_pass.extend(testing_pass)
 
-                    save_to_filename = 'Data/Datasets/Titanic_{}'.format(i)
+                    save_to_filename = '{}/Datasets/Titanic_{}'.format(data_path, i)
                     i += 1
 
                     create_new_dataset(save_to_filename,

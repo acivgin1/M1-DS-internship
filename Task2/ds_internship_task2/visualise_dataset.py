@@ -72,7 +72,7 @@ def plot_age_title_class(features, labels, data_path):
 
     fig.savefig('{}/Images/Scatter.png'.format(data_path), bbox_inches='tight')
 
-    with open('{}/Pickles/myplot.pickle'.format(data_path), 'wb') as fid:
+    with open('{}/Pickles/age_title_class.pickle'.format(data_path), 'wb') as fid:
         pickle.dump(ax, fid)
 
 
@@ -91,6 +91,7 @@ def plot_features_and_labels(df, data_path, dataset_id):
     features = df.as_matrix()
 
     plot_age_title(features, labels, data_path)
+
     plot_age_title_class(features, labels, data_path)
 
 
@@ -121,10 +122,10 @@ def create_survivor_groups(df, data_path):
                                   data_path='{}/{}'.format(data_path, USED_DIRS_NAMES[-1]))
 
 
-def create_visualisations(dataset_id=14):
-    cur_path = os.path.dirname(__file__)
-
-    data_path = os.path.relpath('../Data', cur_path)
+def create_visualisations(dataset_id=14, data_path=None, show_last_plot=False):
+    if data_path is None:
+        cur_path = os.path.dirname(__file__)
+        data_path = os.path.relpath('../Data', cur_path)
 
     for used_dirs_name in USED_DIRS_NAMES:
         create_dir('{}/{}'.format(data_path, used_dirs_name))
@@ -135,6 +136,8 @@ def create_visualisations(dataset_id=14):
     plot_age_histograms(df, dataset_id=dataset_id, data_path=data_path)
     create_survivor_groups(df, data_path)
     plot_features_and_labels(df, data_path, dataset_id)
+    if show_last_plot:
+        plt.show()
 
 
 if __name__ == '__main__':

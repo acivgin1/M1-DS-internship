@@ -2,7 +2,6 @@ import os
 import pickle
 import warnings
 import itertools
-import collections
 from math import log10
 
 import numpy as np
@@ -20,12 +19,40 @@ AGE_INTERVALS = [6, 18, 32, 52, 72, 100]
 DATASET_IDS = [17, 14, 8, 13]
 CLASSIFIER_NAMES = ['Decision tree', 'Gaussian Naive Bayes', 'Support Vector Machine', 'Logistic Regression']
 
-# Classifier = collections.namedtuple('Classifier', 'model name model_params data_format_params dataset_params')
-Classifier_result = collections.namedtuple('Classifier_test_result', 'classifier accuracy prediction')
-Classifier_cv_result = collections.namedtuple('Classifier_cv_result', 'classifier f1_score')
+
+class ClassifierResult:
+    def __init__(self, classifier, accuracy, prediction):
+        self.classifier = classifier
+        self.accuracy = accuracy
+        self.prediction = prediction
+
+    def save(self, pickles_path, name):
+        with open('{}/result_{}.pkl'.format(pickles_path, name), 'wb') as fod:
+            pickle.dump(self, fod)
+
+    @staticmethod
+    def load(pickles_path, name):
+        with open('{}/result_{}.pkl'.format(pickles_path, name), 'rb') as fid:
+            obj = pickle.load(fid)
+        return obj
 
 
-# a simple structure for allowing mutable attributes
+class ClassifierCvResult:
+    def __init__(self, classifier, f1_score):
+        self.classifier = classifier
+        self.f1_score = f1_score
+
+    def save(self, pickles_path, name):
+        with open('{}/cv_result_{}.pkl'.format(pickles_path, name), 'wb') as fod:
+            pickle.dump(self, fod)
+
+    @staticmethod
+    def load(pickles_path, name):
+        with open('{}/cv_result_{}.pkl'.format(pickles_path, name), 'rb') as fid:
+            obj = pickle.load(fid)
+        return obj
+
+
 class Classifier:
     def __init__(self, model, name, model_params, data_format_params, dataset_params):
         self.model = model
@@ -106,13 +133,13 @@ def tune_classifier_params(classifier, data, labels):
     if classifier.model_cv:
         classifier.model_cv.fit(data, labels)
         classifier.model_params = classifier.model_cv.best_params_
-        classifier_cv_result = Classifier_cv_result(classifier=classifier,
-                                                    f1_score=classifier.model_cv.best_score_)
+        classifier_cv_result = ClassifierCvResult(classifier=classifier,
+                                                  f1_score=classifier.model_cv.best_score_)
     else:
         f1_score = cross_val_score(classifier.model, data, labels, scoring='f1', cv=4, n_jobs=3).mean()
         classifier.model_params = classifier.model.get_params()
-        classifier_cv_result = Classifier_cv_result(classifier=classifier,
-                                                    f1_score=f1_score)
+        classifier_cv_result = ClassifierCvResult(classifier=classifier,
+                                                  f1_score=f1_score)
     return classifier_cv_result
 
 
@@ -178,9 +205,9 @@ def test_model(classifier, data, labels, data_t, labels_t):
     model_acc = accuracy_score(labels, model_prediction)
     model_acc_t = accuracy_score(labels_t, model_prediction_t)
 
-    classifier_result = Classifier_result(classifier=classifier,
-                                          accuracy=(model_acc, model_acc_t),
-                                          prediction=(model_prediction, model_prediction_t, model_prediction_prob))
+    classifier_result = ClassifierResult(classifier=classifier,
+                                         accuracy=(model_acc, model_acc_t),
+                                         prediction=(model_prediction, model_prediction_t, model_prediction_prob))
     return classifier_result
 
 
@@ -268,6 +295,7 @@ def tune_classifiers(classifiers, param_grids, filename, pickles_path, fine_tune
                                                n_jobs=3)
 
         classifier_cv_result = tune_classifier_dataset_params(classifier, filename)
+        classifier_cv_result.save(pickles_path, classifier.name)
 
         if classifier.model_cv:
             for i in range(fine_tune_iterations):
@@ -284,9 +312,6 @@ def tune_classifiers(classifiers, param_grids, filename, pickles_path, fine_tune
 
         classifier_result = test_model(classifier, data, labels, data_t, labels_t)
 
-        with open('{}/cv_result_{}.pkl'.format(pickles_path, classifier.name), 'wb') as fid:
-            pickle.dump(classifier_cv_result, fid)
-
         fine_tuned_classifiers.append(fine_tuned_classifier)
         classifier_cv_results.append(classifier_cv_result)
         classifier_results.append(classifier_result)
@@ -294,7 +319,7 @@ def tune_classifiers(classifiers, param_grids, filename, pickles_path, fine_tune
     return fine_tuned_classifiers, classifier_cv_results, classifier_results
 
 
-def tune_voting_classifier(classifier_cv_results, filename):
+def tune_voting_classifier(classifier_cv_results, filename, pickles_path):
     classifiers = []
     weights = []
     full_filename = '{}_{}'.format(filename, dataset_params_to_dataset_id((True, 0.2, False)))
@@ -314,21 +339,21 @@ def tune_voting_classifier(classifier_cv_results, filename):
 
         weights.append(classifier_result.accuracy[0])
 
-    eclf = VotingClassifier(estimators=[('dt', classifiers[0]),
-                                        ('gnb', classifiers[1]),
-                                        ('svm', classifiers[2]),
-                                        ('lr', classifiers[3])
-                                        ], voting='soft', weights=weights)
-    eclf_clas = Classifier(model=eclf,
-                           name='Voting Classifier',
-                           model_params=eclf.get_params(),
-                           data_format_params=(True, False, True),
-                           dataset_params=(True, 0.2, False))
-    classifier_result = test_model(eclf_clas, data, labels, data_t, labels_t)
-    return classifier_result
+    voting_model = VotingClassifier(estimators=[('dt', classifiers[0]),
+                                                ('gnb', classifiers[1]),
+                                                ('svm', classifiers[2]),
+                                                ('lr', classifiers[3])
+                                                ], voting='soft', weights=weights)
+    voting_clas = Classifier(model=voting_model,
+                             name='Voting Classifier',
+                             model_params={'weights': voting_model.weights},
+                             data_format_params=(True, False, True),
+                             dataset_params=(True, 0.2, False))
 
-    # eclf_cv = GridSearchCV(eclf, param_grid={'weights': generate_weight_grid([0.8, 1], num_of_models=4)})
-    # eclf_cv.fit(data, labels)
+    classifier_result = test_model(voting_clas, data, labels, data_t, labels_t)
+    classifier_result.save(pickles_path, 'Voting Classifier')
+
+    return classifier_result
 
 
 def load_classifiers(filename, pickles_path):
@@ -337,40 +362,41 @@ def load_classifiers(filename, pickles_path):
     classifier_results = []
 
     for name in CLASSIFIER_NAMES:
-        with open('{}/cv_result_{}.pkl'.format(pickles_path, name), 'rb') as fid:
-            classifier_cv_result = pickle.load(fid)
+        classifier_cv_result = ClassifierCvResult.load(pickles_path, name)
 
-            fine_tuned_classifier = classifier_cv_result.classifier.model
-            fine_tuned_classifier.set_params(**classifier_cv_result.classifier.model_params)
+        fine_tuned_classifier = classifier_cv_result.classifier.model
+        fine_tuned_classifier.set_params(**classifier_cv_result.classifier.model_params)
 
-            test_filename = '{}_{}'.format(filename,
-                                           dataset_params_to_dataset_id(
-                                               classifier_cv_result.classifier.dataset_params))
-            scale_data, delete_fam_size, group_by_age = classifier_cv_result.classifier.data_format_params
-            data, labels, data_t, labels_t = get_training_and_test_data(test_filename, scale_data, delete_fam_size,
-                                                                        group_by_age)
+        test_filename = '{}_{}'.format(filename,
+                                       dataset_params_to_dataset_id(
+                                           classifier_cv_result.classifier.dataset_params))
+        scale_data, delete_fam_size, group_by_age = classifier_cv_result.classifier.data_format_params
+        data, labels, data_t, labels_t = get_training_and_test_data(test_filename, scale_data, delete_fam_size,
+                                                                    group_by_age)
 
-            classifier_result = test_model(classifier_cv_result.classifier, data, labels, data_t, labels_t)
+        classifier_result = test_model(classifier_cv_result.classifier, data, labels, data_t, labels_t)
 
-            fine_tuned_classifiers.append(fine_tuned_classifier)
-            classifier_cv_results.append(classifier_cv_result)
-            classifier_results.append(classifier_result)
+        fine_tuned_classifiers.append(fine_tuned_classifier)
+        classifier_cv_results.append(classifier_cv_result)
+        classifier_results.append(classifier_result)
 
     return fine_tuned_classifiers, classifier_cv_results, classifier_results
 
 
-def print_classifier_result(classifier_result):
-    print('{}: {} {} {}'.format(classifier_result.classifier.name,
-                                classifier_result.classifier.model_params,
-                                classifier_result.classifier.data_format_params,
-                                classifier_result.classifier.dataset_params))
+def print_classifier_cv_result(classifier_cv_result):
+    print('{}: {} {} {}'.format(classifier_cv_result.classifier.name,
+                                classifier_cv_result.classifier.model_params,
+                                classifier_cv_result.classifier.data_format_params,
+                                classifier_cv_result.classifier.dataset_params))
 
 
 # this is a work in progress create_new_datasets method that does hyper model_params and model model_params
 # tuning and testing of different models
-def main(train_models=True, print_results=True):
-    cur_path = os.path.dirname(__file__)
-    data_path = os.path.relpath('../Data', cur_path)
+def classifier_main(train_models=True, print_results=True, data_path=None):
+    if data_path is None:
+        cur_path = os.path.dirname(__file__)
+        data_path = os.path.relpath('../Data', cur_path)
+
     filename = '{}/Datasets/Titanic'.format(data_path)
     pickles_path = '{}/Pickles'.format(data_path)
 
@@ -380,16 +406,23 @@ def main(train_models=True, print_results=True):
                                                                                              param_grids=param_grids,
                                                                                              filename=filename,
                                                                                              pickles_path=pickles_path)
+        voting_classifier_result = tune_voting_classifier(classifier_cv_results, filename, pickles_path)
     else:
         fine_tuned_classifiers, classifier_cv_results, classifier_results = load_classifiers(filename, pickles_path)
+        voting_classifier_result = ClassifierResult.load(pickles_path, 'Voting Classifier')
 
     if print_results:
-        for res in classifier_cv_results:
-            print_classifier_result(res)
+        for res, res1 in zip(classifier_cv_results, classifier_results):
+            print_classifier_cv_result(res)
+            print(res1.accuracy)
+            for elem in res1.prediction:
+                print(elem)
 
-    classifier_result = tune_voting_classifier(classifier_cv_results, filename)
-    print_classifier_result(classifier_result)
+        print(voting_classifier_result.classifier.name)
+        print(voting_classifier_result.accuracy)
+        for elem in voting_classifier_result.prediction:
+            print(elem)
 
 
 if __name__ == '__main__':
-    main(False)
+    classifier_main(False)
