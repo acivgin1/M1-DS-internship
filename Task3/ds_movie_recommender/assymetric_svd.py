@@ -34,7 +34,7 @@ def svd_train(R, V, k_order=5, gamma=0.02, beta=0.05, num_of_iters=50, print_sta
     rmse_arr = []
     rmse_t_arr = []
 
-    for iteration in range(num_of_iters):
+    for iteration in tqdm(range(num_of_iters)):
         cum_error = 0
         for u, i, r in zip(R.row, R.col, R.data):
             error = r - (mu + bu[u] + bi[i] + np.dot(pu[u], qi[i]))
@@ -45,27 +45,35 @@ def svd_train(R, V, k_order=5, gamma=0.02, beta=0.05, num_of_iters=50, print_sta
             bu[u] += gamma*(error - beta * bu[u])
             bi[i] += gamma*(error - beta * bi[i])
 
-            for k in range(k_order):
-                pu[u, k] *= one_minus_gb
-                pu[u, k] += error*qi[i, k]
+            puu = pu[u]
+            pu[u] *= one_minus_gb
+            pu[u] += error*qi[i]
 
-                qi[i, k] *= one_minus_gb
-                qi[i, k] += error*pu[u, k]
+            qi[i] *= one_minus_gb
+            qi[i] += error*puu
 
+            # for k in range(k_order):
+            #     puk = pu[u, k]
+            #
+            #     pu[u, k] *= one_minus_gb
+            #     pu[u, k] += error*qi[i, k]
+            #
+            #     qi[i, k] *= one_minus_gb
+            #     qi[i, k] += error*puk
+
+        cum_t_error = 0
+        for u, i, r in zip(V.row, V.col, V.data):
+            r_hat = svd_predict(u, i, pu, qi, mu, bu, bi)
+            error = (r - r_hat)**2
+
+            cum_t_error += error
+
+        rmse = np.sqrt(cum_error/R.data.shape[0])
+        rmse_t = np.sqrt(cum_t_error/V.data.shape[0])
+
+        rmse_arr.append(rmse)
+        rmse_t_arr.append(rmse_t)
         if print_state:
-            cum_t_error = 0
-            for u, i, r in zip(V.row, V.col, V.data):
-                r_hat = svd_predict(u, i, pu, qi, mu, bu, bi)
-                error = (r - r_hat)**2
-
-                cum_t_error += error
-
-            rmse = np.sqrt(cum_error/R.data.shape[0])
-            rmse_t = np.sqrt(cum_t_error/V.data.shape[0])
-
-            rmse_arr.append(rmse)
-            rmse_t_arr.append(rmse_t)
-
             print('epoch: {} error: {} t_error: {}'.format(iteration, rmse, rmse_t))
     return mu, bu, bi, pu, qi, rmse_arr, rmse_t_arr
 
