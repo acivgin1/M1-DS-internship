@@ -2,10 +2,10 @@ import numpy as np
 from scipy import sparse
 from ratings import main as r_main
 from matplotlib import pyplot as plt
-from assymetric_svd import svd_predict, svd_train
+# from assymetric_svd import svd_predict, svd_train
 
-# import pyximport; pyximport.install()
-# from matrix_factorization import svd_predict, svd_train
+import pyximport; pyximport.install()
+from matrix_factorization import svd_predict, svd_train
 
 
 def shuffle_sparse(sparse_matrix):
@@ -31,7 +31,8 @@ shuffle_sparse(sA)
 
 del A
 
-# sA, _ = train_and_test_from_sparse(sA, ratio=1)
+
+# sA, _ = train_and_test_from_sparse(sA, ratio=0.0001)
 
 # sA = sA.tocsr()
 # sA = sA[sA.getnnz(1) > 0][:, sA.getnnz(0) > 0]
@@ -40,8 +41,10 @@ del A
 sA_train, sA_test = train_and_test_from_sparse(sA, ratio=0.8)
 del sA
 
+# sA_train = sort_coo(sA_train)
+
 mu, bu, bi, pu, qi, rmse_arr, rmse_t_arr = svd_train(sA_train, sA_test,
-                                                     k_order=20,
+                                                     k_order=100,
                                                      gamma=0.005,
                                                      beta=0.02,
                                                      num_of_iters=20,

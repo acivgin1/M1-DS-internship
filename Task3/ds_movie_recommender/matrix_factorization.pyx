@@ -1,9 +1,7 @@
 cimport cython
 import numpy as np
 cimport numpy as np
-
-DTYPE = np.int
-ctypedef np.int_t DTYPE_t
+import time
 
 def svd_train(R, V, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, v_range=(1, 5), print_state=True):
     '''
@@ -19,6 +17,9 @@ def svd_train(R, V, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, v_rang
     :param print_state: print_state errors
     :return: mu, bu, bi, pu, qi
     '''
+    cdef np.ndarray[np.double_t] rmse_arr
+    cdef np.ndarray[np.double_t] rmse_t_arr
+
     cdef np.ndarray[np.double_t] bu
     cdef np.ndarray[np.double_t] bi
 
@@ -26,13 +27,16 @@ def svd_train(R, V, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, v_rang
     cdef np.ndarray[np.double_t, ndim=2] qi
 
     cdef int u, i, k
-    cdef double mean, std_dev, one_minus_gb, mu, r, err, dot
+    cdef double mean, std_dev, one_minus_gb, mu, r, err, dot, puk, qik
 
     mean = 0
     std_dev = 0.1
     one_minus_gb = 1 - gamma * beta
 
     mu = (R.data.sum()/R.data.shape)[0]
+
+    rmse_arr = np.array([])
+    rmse_t_arr = np.array([])
 
     bu = np.zeros(R.shape[0], dtype=np.double)
     bi = np.zeros(R.shape[1], dtype=np.double)
@@ -41,6 +45,7 @@ def svd_train(R, V, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, v_rang
     qi = np.random.normal(mean, std_dev, (R.shape[1], k_order))
 
     for iteration in range(num_of_iters):
+        start = time.time()
         cum_error = 0
         for u, i, r in zip(R.row, R.col, R.data):
             dot = 0
@@ -55,25 +60,38 @@ def svd_train(R, V, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, v_rang
             bi[i] += gamma*(error - beta * bi[i])
 
             for k in range(k_order):
+                puk = pu[u, k]
+                qik = qi[i, k]
+
                 pu[u, k] *= one_minus_gb
-                pu[u, k] += error*qi[i, k]
+                pu[u, k] += error*qik
 
                 qi[i, k] *= one_minus_gb
-                qi[i, k] += error*pu[u, k]
+                qi[i, k] += error*puk
+
+
+        cum_t_error = 0
+        for u, i, r in zip(V.row, V.col, V.data):
+            r_hat = svd_predict(u, i, pu, qi, mu, bu, bi)
+            error = (r - r_hat)**2
+
+            cum_t_error += error
+
+        rmse = np.sqrt(cum_error/R.data.shape[0])
+        rmse_t = np.sqrt(cum_t_error/V.data.shape[0])
+
+        np.append(rmse_arr, rmse)
+        np.append(rmse_t_arr, rmse_t)
 
         if print_state:
-            cum_t_error = 0
-            for u, i, r in zip(V.row, V.col, V.data):
-                r_hat = svd_predict(u, i, pu, qi, mu, bu, bi)
-                error = (r - r_hat)**2
+            stop = time.time()
+            duration = stop-start
+            print('dur: {} epoch: {} error: {} t_error: {}'.format(duration, iteration, rmse, rmse_t))
 
-                cum_t_error += error
-
-            print('epoch: {} error: {} t_error: {}'.format(iteration, np.sqrt(cum_error), np.sqrt(cum_t_error)))
-    return mu, bu, bi, pu, qi
+    return mu, bu, bi, pu, qi, rmse_arr, rmse_t_arr
 
 
-def svd_predict(u, i, pu, qi, mu, np.ndarray[DTYPE_t, ndim=2] bu, np.ndarray[DTYPE_t, ndim=2] bi):
+def svd_predict(u, i, pu, qi, mu, bu=0, bi=0):
     '''
     Returns predicted rating of user with u-id for a movie with i-id
 

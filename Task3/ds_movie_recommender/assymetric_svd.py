@@ -2,7 +2,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-def svd_train(R, V, k_order=5, gamma=0.02, beta=0.05, num_of_iters=50, print_state=True):
+def svd_train(R, V, k_order=100, gamma=0.005, beta=0.02, num_of_iters=20, print_state=True):
     '''
     performs stochastic gradient descent on SVD algorithm
 
