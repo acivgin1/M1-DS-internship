@@ -1,11 +1,11 @@
 import os
-import sys
 
 import numpy as np
 import pandas as pd
-from scipy.sparse import csr_matrix
-from scipy.sparse import save_npz, load_npz
+from tqdm import tqdm
 from matplotlib import pyplot as plt
+from scipy.sparse import csr_matrix, coo_matrix
+from scipy.sparse import save_npz, load_npz
 
 
 def ratings_to_sparse_matrix(data_path):
@@ -60,16 +60,80 @@ def visualize_sparse(sparse_matrix):
     plt.show()
 
 
+def shuffle_sparse(sparse_matrix):
+    rng_state = np.random.get_state()
+    np.random.shuffle(sparse_matrix.data)
+    np.random.set_state(rng_state)
+    np.random.shuffle(sparse_matrix.row)
+    np.random.set_state(rng_state)
+    np.random.shuffle(sparse_matrix.col)
+
+
+def train_and_test_from_sparse(sm, data_path, ratio):
+    test_len = int(sm.data.shape[0] * (1 - ratio))
+
+    test_list = np.empty([3, test_len])
+    train_list = np.empty([3, sm.data.shape[0] - test_len])
+
+    test_i = 0
+    train_i = 0
+
+    seen_row_set = set()
+    seen_col_set = set()
+
+    for i in tqdm(range(sm.data.shape[0])):
+        if test_i < test_len and sm.row[i] in seen_row_set and sm.col[i] in seen_col_set:
+            test_list[:, test_i] = np.array([sm.row[i], sm.col[i], sm.data[i]])
+            test_i += 1
+        else:
+            train_list[:, train_i] = np.array([sm.row[i], sm.col[i], sm.data[i]])
+            train_i += 1
+            seen_row_set.add(sm.row[i])
+            seen_col_set.add(sm.col[i])
+
+    # train_matrix = sparse.coo_matrix((sm.data[0:train_len], (sm.row[0:train_len], sm.col[0:train_len])))
+    # test_matrix = sparse.coo_matrix((sm.data[train_len:], (sm.row[train_len:], sm.col[train_len:])))
+    train_matrix = coo_matrix((train_list[2, :], (train_list[0, :].astype(np.uint32), train_list[1, :].astype(np.uint32))))
+    del train_list
+    test_matrix = coo_matrix((test_list[2, :], (test_list[0, :].astype(np.uint32), test_list[1, :].astype(np.uint32))))
+    del test_list
+
+    save_npz('{}/train_ratings.npz'.format(data_path), train_matrix)
+    save_npz('{}/test_ratings.npz'.format(data_path), test_matrix)
+
+
+def load_train_test(data_path):
+    train_matrix = load_npz('{}/train_ratings.npz'.format(data_path))
+    test_matrix = load_npz('{}/test_ratings.npz'.format(data_path))
+    return train_matrix, test_matrix
+
+
 def main():
     cur_path = os.path.dirname(__file__)
     data_path = os.path.relpath('../Data', cur_path)
 
     sparse_matrix = load_npz('{}/{}.npz'.format(data_path, 'sparse_rating_matrix'))
-
     # visualize_sparse(sparse_matrix)
 
-    coo_matrix = sparse_matrix.tocoo(copy=False)
-    return coo_matrix
+    cA = sparse_matrix.tocoo(copy=False)
+
+    shuffle_sparse(cA)
+    # train_and_test_from_sparse(cA, data_path, ratio=0.8)
+    train, test = load_train_test(data_path)
+    print(train.row.min())
+    print(train.row.max())
+    print(train.col.min())
+    print(train.col.max())
+
+    print(test.row.min())
+    print(test.row.max())
+    print(test.col.min())
+    print(test.col.max())
+
+    print(cA.row.min())
+    print(cA.row.max())
+    print(cA.col.min())
+    print(cA.col.max())
 
 
 if __name__ == '__main__':

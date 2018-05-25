@@ -3,7 +3,10 @@ import numpy as np
 cimport numpy as np
 import time
 
-def svd_train(R, V, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, v_range=(1, 5), print_state=True):
+
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+def svd_train(R, V, int k_order=100, double gamma=0.002, double beta=0.01, int num_of_iters=20, print_state=True):
     '''
     performs stochastic gradient descent on SVD algorithm
 
@@ -19,6 +22,7 @@ def svd_train(R, V, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, v_rang
     '''
     cdef np.ndarray[np.double_t] rmse_arr
     cdef np.ndarray[np.double_t] rmse_t_arr
+    cdef np.ndarray[np.double_t] mae_t_arr
 
     cdef np.ndarray[np.double_t] bu
     cdef np.ndarray[np.double_t] bi
@@ -27,19 +31,26 @@ def svd_train(R, V, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, v_rang
     cdef np.ndarray[np.double_t, ndim=2] qi
 
     cdef int u, i, k
-    cdef double mean, std_dev, one_minus_gb, mu, r, err, dot, puk, qik
+    cdef double mean, std_dev, one_minus_gb, mu
+    cdef double r, r_hat, error, cum_error, cum_t_error
+    cdef double dot, puk, qik
+    cdef double rmse, rmse_t, mae_t
 
-    mean = 0
+    mu = (R.data.sum()/R.data.shape)[0]  # andrew NG recommends this
+
+    mean = np.sqrt(mu/k_order)
     std_dev = 0.1
     one_minus_gb = 1 - gamma * beta
 
-    mu = (R.data.sum()/R.data.shape)[0]
+    rmse_arr = np.empty(num_of_iters, dtype=np.double)
+    rmse_t_arr = np.empty(num_of_iters, dtype=np.double)
+    mae_t_arr = np.empty(num_of_iters, dtype=np.double)
 
-    rmse_arr = np.array([])
-    rmse_t_arr = np.array([])
+    # bu = np.zeros(R.shape[0], dtype=np.double)
+    # bi = np.zeros(R.shape[1], dtype=np.double)
 
-    bu = np.zeros(R.shape[0], dtype=np.double)
-    bi = np.zeros(R.shape[1], dtype=np.double)
+    bu = np.random.normal(0, std_dev/10, R.shape[0])
+    bi = np.random.normal(0, std_dev/10, R.shape[1])
 
     pu = np.random.normal(mean, std_dev, (R.shape[0], k_order))
     qi = np.random.normal(mean, std_dev, (R.shape[1], k_order))
@@ -69,32 +80,37 @@ def svd_train(R, V, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, v_rang
                 qi[i, k] *= one_minus_gb
                 qi[i, k] += error*puk
 
-
         cum_t_error = 0
+        mae_t = 0
         for u, i, r in zip(V.row, V.col, V.data):
             r_hat = svd_predict(u, i, pu, qi, mu, bu, bi)
-            error = (r - r_hat)**2
+            error = r - r_hat
+            mae_t += abs(error)
 
+            error *= error
             cum_t_error += error
 
         rmse = np.sqrt(cum_error/R.data.shape[0])
         rmse_t = np.sqrt(cum_t_error/V.data.shape[0])
+        mae_t = mae_t/V.data.shape[0]
 
-        rmse_arr = np.append(rmse_arr, rmse)
-        rmse_t_arr = np.append(rmse_t_arr, rmse_t)
+        rmse_arr[iteration] = rmse
+        rmse_t_arr[iteration] = rmse_t
+        mae_t_arr[iteration] = mae_t
 
         if print_state:
             stop = time.time()
             duration = stop-start
-            print('dur: {} epoch: {} error: {} t_error: {}'.format(duration, iteration, rmse, rmse_t))
+            print('t:{:.2f} it:{} rmse:{:.6f} rmse_t:{:.6f} mae_t:{:.6f}'.format(duration, iteration, rmse, rmse_t, mae_t))
 
-    return mu, bu, bi, pu, qi, rmse_arr, rmse_t_arr
+    return mu, bu, bi, pu, qi, rmse_arr, rmse_t_arr, mae_t_arr
 
 
-def svd_predict(u, i, pu, qi, mu, bu=0, bi=0):
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+def svd_predict(u, i, np.ndarray[np.double_t, ndim=2] pu, np.ndarray[np.double_t, ndim=2] qi, mu, np.ndarray[np.double_t] bu, np.ndarray[np.double_t] bi):
     '''
     Returns predicted rating of user with u-id for a movie with i-id
-
     :param u integer
     :param i: integer
     :param pu: estimated pu matrix
@@ -111,10 +127,7 @@ def svd_predict(u, i, pu, qi, mu, bu=0, bi=0):
     for k in range(qi.shape[1]):
         dot += pu[u, k] * qi[i, k]
 
-    if isinstance(bu, np.ndarray) and isinstance(bi, np.ndarray):
-        return mu + bu[u] + bi[i] + dot
-    else:
-        return mu + dot
+    return mu + bu[u] + bi[i] + dot
 
 
 def svd_test(test_set, mu, bu, bi, pu, qi):
@@ -128,6 +141,12 @@ def svd_test(test_set, mu, bu, bi, pu, qi):
     rmse = np.sqrt(cum_error / test_set.data.shape[0])
     return rmse
 
+
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+def deviation_from_ortho(np.ndarray[np.double_t, ndim=2] M, size=100):
+    shape = M.shape
+    return np.abs((np.ones((size, size))-np.eye(size, size))*M[0:size, 0:size]).sum()/size/size
 
 def main():
     pass
