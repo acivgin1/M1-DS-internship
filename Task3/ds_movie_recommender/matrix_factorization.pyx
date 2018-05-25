@@ -80,8 +80,8 @@ def svd_train(R, V, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, v_rang
         rmse = np.sqrt(cum_error/R.data.shape[0])
         rmse_t = np.sqrt(cum_t_error/V.data.shape[0])
 
-        np.append(rmse_arr, rmse)
-        np.append(rmse_t_arr, rmse_t)
+        rmse_arr = np.append(rmse_arr, rmse)
+        rmse_t_arr = np.append(rmse_t_arr, rmse_t)
 
         if print_state:
             stop = time.time()
@@ -115,6 +115,18 @@ def svd_predict(u, i, pu, qi, mu, bu=0, bi=0):
         return mu + bu[u] + bi[i] + dot
     else:
         return mu + dot
+
+
+def svd_test(test_set, mu, bu, bi, pu, qi):
+    cum_error = 0
+    for u, i, r in zip(test_set.row, test_set.col, test_set.data):
+        r_hat = svd_predict(u, i, pu, qi, mu, bu, bi)
+        error = (r - r_hat)**2
+
+        cum_error += error
+
+    rmse = np.sqrt(cum_error / test_set.data.shape[0])
+    return rmse
 
 
 def main():

@@ -1,3 +1,5 @@
+import os
+
 import numpy as np
 from scipy import sparse
 from ratings import main as r_main
@@ -27,46 +29,70 @@ def train_and_test_from_sparse(sm, ratio=0.7):
 A = r_main()
 
 sA = sparse.coo_matrix(A)
-shuffle_sparse(sA)
+# shuffle_sparse(sA)
 
 del A
-
-
-# sA, _ = train_and_test_from_sparse(sA, ratio=0.0001)
-
-# sA = sA.tocsr()
-# sA = sA[sA.getnnz(1) > 0][:, sA.getnnz(0) > 0]
-# sA = sA.tocoo()
-
+#
+#
+# # sA, _ = train_and_test_from_sparse(sA, ratio=0.0001)
+#
+# # sA = sA.tocsr()
+# # sA = sA[sA.getnnz(1) > 0][:, sA.getnnz(0) > 0]
+# # sA = sA.tocoo()
+#
 sA_train, sA_test = train_and_test_from_sparse(sA, ratio=0.8)
 del sA
+#
+# # sA_train = sort_coo(sA_train)
+#
+# mu, bu, bi, pu, qi, rmse_arr, rmse_t_arr = svd_train(sA_train, sA_test,
+#                                                      k_order=100,
+#                                                      gamma=0.005,
+#                                                      beta=0.02,
+#                                                      num_of_iters=20,
+#                                                      print_state=True)
 
-# sA_train = sort_coo(sA_train)
 
-mu, bu, bi, pu, qi, rmse_arr, rmse_t_arr = svd_train(sA_train, sA_test,
-                                                     k_order=100,
-                                                     gamma=0.005,
-                                                     beta=0.02,
-                                                     num_of_iters=20,
-                                                     print_state=True)
+cur_path = os.path.dirname(__file__)
+data_path = os.path.relpath('../Data', cur_path)
 
-n = len(rmse_arr)
-t = np.arange(1, n+1)
+# np.save('{}/bu.npy'.format(data_path), bu)
+# np.save('{}/bi.npy'.format(data_path), bi)
+# np.save('{}/pu.npy'.format(data_path), pu)
+# np.save('{}/qi.npy'.format(data_path), qi)
+#
+# bu = np.load('{}/bu.npy'.format(data_path))
+# bi = np.load('{}/bi.npy'.format(data_path))
+# pu = np.load('{}/pu.npy'.format(data_path))
+# qi = np.load('{}/qi.npy'.format(data_path))
 
-rmse_arr = np.array(rmse_arr)
-rmse_t_arr = np.array(rmse_t_arr)
 
-plt.figure()
-plt.subplot(211)
-plt.plot(t, rmse_arr)
-plt.plot(t, rmse_t_arr)
-plt.legend(['Training', 'Testing'])
-plt.xlabel('Broj iteracija')
-plt.ylabel('RMSE')
+bu = np.load('bu.npy')
+bi = np.load('bi.npy')
+pu = np.load('pu.npy')
+qi = np.load('qi.npy')
 
-plt.subplot(212)
-plt.plot(t[1:], -np.diff(rmse_arr))
-plt.plot(t[1:], -np.diff(rmse_t_arr))
-plt.legend(['Training', 'Testing'])
-plt.xlabel('Broj iteracija')
-plt.ylabel('RMSE')
+
+mu = (sA_train.data.sum()/sA_train.data.shape)[0]
+
+# print(svd_predict(1, 98809, pu, qi, mu, bu, bi))
+
+print(np.dot(pu[0:5], pu[0:5].transpose()))
+
+# rmse_arr = np.array(rmse_arr)
+# rmse_t_arr = np.array(rmse_t_arr)
+#
+# plt.figure()
+# plt.subplot(211)
+# plt.plot(t, rmse_arr)
+# plt.plot(t, rmse_t_arr)
+# plt.legend(['Training', 'Testing'])
+# plt.xlabel('Broj iteracija')
+# plt.ylabel('RMSE')
+#
+# plt.subplot(212)
+# plt.plot(t[1:], -np.diff(rmse_arr))
+# plt.plot(t[1:], -np.diff(rmse_t_arr))
+# plt.legend(['Training', 'Testing'])
+# plt.xlabel('Broj iteracija')
+# plt.ylabel('RMSE')
