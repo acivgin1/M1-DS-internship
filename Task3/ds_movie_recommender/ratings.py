@@ -25,7 +25,8 @@ def ratings_to_sparse_matrix(data_path):
     data = ratings['rating'].tolist()
     sparse_matrix = csr_matrix((data, (row, col)), shape=(row_len, col_len))
 
-    sparse_matrix = sparse_matrix.astype(np.float16)  # we don't need high precision
+    sparse_matrix.data *= 10
+    sparse_matrix = sparse_matrix.astype(np.uint32)  # we don't need high precision
 
     save_npz('{}/{}.npz'.format(data_path, 'sparse_rating_matrix'), sparse_matrix)
 
@@ -61,12 +62,12 @@ def visualize_sparse(sparse_matrix):
 
 
 def shuffle_sparse(sparse_matrix):
-    rng_state = np.random.get_state()
-    np.random.shuffle(sparse_matrix.data)
-    np.random.set_state(rng_state)
-    np.random.shuffle(sparse_matrix.row)
-    np.random.set_state(rng_state)
-    np.random.shuffle(sparse_matrix.col)
+    help = np.vstack((sparse_matrix.row, sparse_matrix.col, sparse_matrix.data)).transpose()
+
+    np.random.shuffle(help)
+
+    spar = coo_matrix((help[:, 2], (help[:, 0].astype(np.uint32), help[:, 1].astype(np.uint32))))
+    return spar
 
 
 def train_and_test_from_sparse(sm, data_path, ratio):
@@ -112,14 +113,18 @@ def main():
     cur_path = os.path.dirname(__file__)
     data_path = os.path.relpath('../Data', cur_path)
 
+    # ratings_to_sparse_matrix(data_path)
+
     sparse_matrix = load_npz('{}/{}.npz'.format(data_path, 'sparse_rating_matrix'))
+
     # visualize_sparse(sparse_matrix)
 
     cA = sparse_matrix.tocoo(copy=False)
 
-    shuffle_sparse(cA)
+    # cA = shuffle_sparse(cA)
     # train_and_test_from_sparse(cA, data_path, ratio=0.8)
     train, test = load_train_test(data_path)
+
     print(train.row.min())
     print(train.row.max())
     print(train.col.min())
@@ -134,6 +139,7 @@ def main():
     print(cA.row.max())
     print(cA.col.min())
     print(cA.col.max())
+    return cA
 
 
 if __name__ == '__main__':

@@ -12,11 +12,11 @@ class SvdCluster:
         self.num_of_iters = num_of_iters
         self.verbose = verbose
 
-        self.mu = None
-        self.bu = None
-        self.bi = None
-        self.pu = None
-        self.qi = None
+        self.mu = np.array([])
+        self.bu = np.array([])
+        self.bi = np.array([])
+        self.pu = np.array([])
+        self.qi = np.array([])
 
         self.rmse_arr = np.array([])
         self.rmse_t_arr = np.array([])
@@ -62,12 +62,17 @@ class SvdCluster:
 
         # bu = np.zeros(R.shape[0], dtype=np.double)
         # bi = np.zeros(R.shape[1], dtype=np.double)
+        if self.bu.size == 0:
+            bu = np.random.normal(0, std_dev/10, R.shape[0])
+            bi = np.random.normal(0, std_dev/10, R.shape[1])
 
-        bu = np.random.normal(0, std_dev/10, R.shape[0])
-        bi = np.random.normal(0, std_dev/10, R.shape[1])
-
-        pu = np.random.normal(mean, std_dev, (R.shape[0], self.k_order))
-        qi = np.random.normal(mean, std_dev, (R.shape[1], self.k_order))
+            pu = np.random.normal(mean, std_dev, (R.shape[0], self.k_order))
+            qi = np.random.normal(mean, std_dev, (R.shape[1], self.k_order))
+        else:
+            bu = self.bu
+            bi = self.bi
+            pu = self.pu
+            qi = self.qi
 
         for iteration in range(self.num_of_iters):
             start = time.time()
@@ -167,9 +172,9 @@ class SvdCluster:
         plt.show()
 
         plt.figure()
-        plt.plot(-np.diff(self.rmse_arr))
-        plt.plot(-np.diff(self.rmse_t_arr))
-        plt.plot(-np.diff(self.mae_t_arr))
+        plt.plot(np.diff(self.rmse_arr))
+        plt.plot(np.diff(self.rmse_t_arr))
+        plt.plot(np.diff(self.mae_t_arr))
         plt.grid()
         plt.legend(['Training', 'Testing', 'MAE: testing'])
         plt.xlabel('Iteration')
