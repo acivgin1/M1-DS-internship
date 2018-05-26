@@ -17,14 +17,13 @@ if __name__ == '__main__':
     sA_train.data /= 10
     sA_test.data /= 10
 
-    svd_cluster = SvdCluster(k_order=100, gamma=0.005, beta=0.02, num_of_iters=20, verbose=True)
+    svd_cluster = SvdCluster(k_order=75, gamma=0.005, beta=0.02, num_of_iters=100, verbose=True)
 
     mu = (sA_train.data.sum()/sA_train.data.shape)[0]
-    # svd_cluster.load_svd_params(svd_path, mu)
     svd_cluster.svd_train(sA_train, sA_test)
-    # svd_cluster.save_svd_params(svd_path)
+    svd_cluster.save_svd_params(svd_path)
 
-    # svd_cluster.plot_progress()
+    svd_cluster.plot_progress()
 
     joined_df = pd.read_csv('{}/imdb_movielens.csv'.format(data_path), index_col='movieId')
     joined_df.index -= 1

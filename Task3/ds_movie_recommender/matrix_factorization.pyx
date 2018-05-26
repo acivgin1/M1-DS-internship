@@ -38,8 +38,13 @@ class SvdCluster:
                                                                                          self.pu,
                                                                                          self.qi)
         self.mu, self.bu, self.bi, self.pu, self.qi = (mu, bu, bi, pu, qi)
-        self.rmse_arr, self.rmse_t_arr, self.mae_t_arr = (rmse_arr, rmse_t_arr, mae_t_arr)
-        self.pu_dev, self.qi_dev = (pu_dev, qi_dev)
+
+        self.rmse_arr = np.append(self.rmse_arr, rmse_arr)
+        self.rmse_t_arr = np.append(self.rmse_t_arr, rmse_t_arr)
+        self.mae_t_arr = np.append(self.mae_t_arr, mae_t_arr)
+
+        self.pu_dev = np.append(self.pu_dev, pu_dev)
+        self.qi_dev = np.append(self.qi_dev, qi_dev)
 
     def svd_test(self, test_set):
         cum_error = 0
@@ -93,29 +98,25 @@ class SvdCluster:
 
 
     def save_svd_params(self, svd_path):
-        np.save('{}/bu.npy'.format(svd_path), self.bu)
-        np.save('{}/bi.npy'.format(svd_path), self.bi)
-        np.save('{}/pu.npy'.format(svd_path), self.pu)
-        np.save('{}/qi.npy'.format(svd_path), self.qi)
-
-        np.save('{}/pu_dev.npy'.format(svd_path), self.pu_dev)
-        np.save('{}/qi_dev.npy'.format(svd_path), self.qi_dev)
-        np.save('{}/rmse_arr.npy'.format(svd_path), self.rmse_arr)
-        np.save('{}/rmse_t_arr.npy'.format(svd_path), self.rmse_t_arr)
-        np.save('{}/mae_t_arr.npy'.format(svd_path), self.mae_t_arr)
+        np.savez('{}/svd_params.npy'.format(svd_path),
+                 bu=self.bu, bi=self.bi, pu=self.pu, qi=self.qi,
+                 pu_dev=self.pu_dev, qi_dev=self.qi_dev,
+                 rmse_arr=self.rmse_arr, rmse_t_arr=self.rmse_t_arr, mae_t_arr=self.mae_t_arr)
 
     def load_svd_params(self, svd_path, mu):
         self.mu = mu
-        self.bu = np.load('{}/bu.npy'.format(svd_path))
-        self.bi = np.load('{}/bi.npy'.format(svd_path))
-        self.pu = np.load('{}/pu.npy'.format(svd_path))
-        self.qi = np.load('{}/qi.npy'.format(svd_path))
+        loadz = np.load('{}/svd_params.npy'.format(svd_path))
 
-        self.pu_dev = np.load('{}/pu_dev.npy'.format(svd_path))
-        self.qi_dev = np.load('{}/qi_dev.npy'.format(svd_path))
-        self.rmse_arr = np.load('{}/rmse_arr.npy'.format(svd_path))
-        self.rmse_t_arr = np.load('{}/rmse_t_arr.npy'.format(svd_path))
-        self.mae_t_arr = np.load('{}/mae_t_arr.npy'.format(svd_path))
+        self.bu = loadz['bu']
+        self.bi = loadz['bi']
+        self.pu = loadz['pu']
+        self.qi = loadz['qi']
+
+        self.pu_dev = loadz['pu_dev']
+        self.qi_dev = loadz['qi_dev']
+        self.rmse_arr = loadz['rmse_arr']
+        self.rmse_t_arr = loadz['rmse_t_arr']
+        self.mae_t_arr = loadz['mae_t_arr']
 
 
 @cython.boundscheck(False) # turn off bounds-checking for entire function
