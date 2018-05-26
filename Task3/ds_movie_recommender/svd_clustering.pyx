@@ -5,12 +5,13 @@ import time
 from matplotlib import pyplot as plt
 
 class SvdCluster:
-    def __init__(self, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, verbose=True):
+    def __init__(self, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, verbose=True, svd_path=None):
         self.k_order = k_order
         self.gamma = gamma
         self.beta = beta
         self.num_of_iters = num_of_iters
         self.verbose = verbose
+        self.svd_path = svd_path
 
         self.mu = np.array([])
         self.bu = np.array([])
@@ -33,6 +34,7 @@ class SvdCluster:
                                                                                          self.beta,
                                                                                          self.num_of_iters,
                                                                                          self.verbose,
+                                                                                         self.svd_path,
                                                                                          self.bu,
                                                                                          self.bi,
                                                                                          self.pu,
@@ -97,15 +99,15 @@ class SvdCluster:
         plt.show()
 
 
-    def save_svd_params(self, svd_path):
-        np.savez('{}/svd_params.npy'.format(svd_path),
+    def save_svd_params(self):
+        np.savez('{}/svd_params.npy'.format(self.svd_path),
                  bu=self.bu, bi=self.bi, pu=self.pu, qi=self.qi,
                  pu_dev=self.pu_dev, qi_dev=self.qi_dev,
                  rmse_arr=self.rmse_arr, rmse_t_arr=self.rmse_t_arr, mae_t_arr=self.mae_t_arr)
 
-    def load_svd_params(self, svd_path, mu):
+    def load_svd_params(self, mu):
         self.mu = mu
-        loadz = np.load('{}/svd_params.npy'.format(svd_path))
+        loadz = np.load('{}/svd_params.npy'.format(self.svd_path))
 
         self.bu = loadz['bu']
         self.bi = loadz['bi']
@@ -121,7 +123,7 @@ class SvdCluster:
 
 @cython.boundscheck(False) # turn off bounds-checking for entire function
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
-def _svd_train(R, V, int k_order, double gamma, double beta, int num_of_iters, verbose,
+def _svd_train(R, V, int k_order, double gamma, double beta, int num_of_iters, verbose, svd_path,
                np.ndarray[np.double_t] bu_in, np.ndarray[np.double_t] bi_in,
                np.ndarray[np.double_t, ndim=2] pu_in, np.ndarray[np.double_t, ndim=2] qi_in):
     cdef np.ndarray[np.double_t] rmse_arr
@@ -171,6 +173,7 @@ def _svd_train(R, V, int k_order, double gamma, double beta, int num_of_iters, v
     for iteration in range(num_of_iters):
         start = time.time()
         cum_error = 0
+
         for u, i, r in zip(R.row, R.col, R.data):
             dot = 0
             for k in range(k_order):
@@ -215,6 +218,9 @@ def _svd_train(R, V, int k_order, double gamma, double beta, int num_of_iters, v
 
         pu_dev[iteration] = deviation_from_ortho(pu)
         qi_dev[iteration] = deviation_from_ortho(qi)
+
+        if iteration % 10 == 0:
+            np.savez('{}/temp_{}.npy'.format(svd_path, iteration), bu=bu, bi=bi, pu=pu, qi=qi)
         if verbose:
             stop = time.time()
             duration = stop-start
