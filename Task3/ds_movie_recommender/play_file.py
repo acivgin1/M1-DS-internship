@@ -17,10 +17,10 @@ if __name__ == '__main__':
     sA_train.data /= 10
     sA_test.data /= 10
 
-    svd_cluster = SvdCluster(k_order=100, gamma=0.005, beta=0.02, num_of_iters=0, verbose=True)
+    svd_cluster = SvdCluster(k_order=100, gamma=0.005, beta=0.02, num_of_iters=20, verbose=True)
 
     mu = (sA_train.data.sum()/sA_train.data.shape)[0]
-    svd_cluster.load_svd_params(svd_path, mu)
+    # svd_cluster.load_svd_params(svd_path, mu)
     svd_cluster.svd_train(sA_train, sA_test)
     # svd_cluster.save_svd_params(svd_path)
 
