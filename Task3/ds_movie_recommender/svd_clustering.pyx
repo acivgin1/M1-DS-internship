@@ -28,11 +28,11 @@ class SvdCluster:
         self.pu_dev = np.array([])
         self.qi_dev = np.array([])
 
-    def svd_train(self, R, V, T):
+    def svd_train(self, R, V, T, modulo=1):
         mu, bu, bi, pu, qi, rmse, ortho_dev = _svd_train(R, V, T,
                                                          self.k_order, self.gamma, self.beta,
                                                          self.num_of_iters, self.verbose, self.svd_path,
-                                                         self.bu, self.bi, self.pu, self.qi)
+                                                         self.bu, self.bi, self.pu, self.qi, modulo)
 
         self.mu, self.bu, self.bi, self.pu, self.qi = (mu, bu, bi, pu, qi)
 
@@ -115,7 +115,7 @@ class SvdCluster:
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
 def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters, verbose, svd_path,
                np.ndarray[np.double_t] bu_in, np.ndarray[np.double_t] bi_in,
-               np.ndarray[np.double_t, ndim=2] pu_in, np.ndarray[np.double_t, ndim=2] qi_in):
+               np.ndarray[np.double_t, ndim=2] pu_in, np.ndarray[np.double_t, ndim=2] qi_in, modulo=1):
     cdef np.ndarray[np.double_t, ndim=2] rmse_arr, ortho_dev, pu, qi
     cdef np.ndarray[np.double_t] bu, bi
 
@@ -131,8 +131,8 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
     std_dev = 0.1
     one_minus_gb = 1 - gamma * beta
 
-    rmse_arr = np.empty((5, num_of_iters), dtype=np.double)
-    ortho_dev = np.empty((2, num_of_iters), dtype=np.double)
+    rmse_arr = np.empty((5, round(num_of_iters/modulo + .5)), dtype=np.double)
+    ortho_dev = np.empty((2, round(num_of_iters/modulo + .5)), dtype=np.double)
 
     if bu_in.size == 0:
         bu = np.random.normal(0, std_dev/10, R.shape[0])
@@ -176,60 +176,66 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
 
         rmse = np.sqrt(cum_error/R.data.shape[0])
 
-        # Fadile oprosti
-        mae_v = 0
-        cum_v_error = 0
-        for u, i, r in zip(V.row, V.col, V.data):
-            dot = 0
-            for k in range(qi.shape[1]):
-                dot += pu[u, k] * qi[i, k]
-            r_hat = mu + bu[u] + bi[i] + dot
-            error = r - r_hat
-            mae_v += abs(error)
+        if iteration % modulo == 0:
+            # Fadile oprosti
+            mae_v = 0
+            cum_v_error = 0
+            for u, i, r in zip(V.row, V.col, V.data):
+                dot = 0
+                for k in range(qi.shape[1]):
+                    dot += pu[u, k] * qi[i, k]
+                r_hat = mu + bu[u] + bi[i] + dot
+                error = r - r_hat
+                mae_v += abs(error)
 
-            error *= error
-            cum_v_error += error
-        mae_v = mae_v/V.data.shape[0]
-        rmse_v = np.sqrt(cum_v_error/V.data.shape[0])
+                error *= error
+                cum_v_error += error
+            mae_v = mae_v/V.data.shape[0]
+            rmse_v = np.sqrt(cum_v_error/V.data.shape[0])
 
-        mae_t = 0
-        cum_t_error = 0
-        for u, i, r in zip(T.row, T.col, T.data):
-            dot = 0
-            for k in range(qi.shape[1]):
-                dot += pu[u, k] * qi[i, k]
-            r_hat = mu + bu[u] + bi[i] + dot
-            error = r - r_hat
-            mae_t += abs(error)
+            mae_t = 0
+            cum_t_error = 0
+            for u, i, r in zip(T.row, T.col, T.data):
+                dot = 0
+                for k in range(qi.shape[1]):
+                    dot += pu[u, k] * qi[i, k]
+                r_hat = mu + bu[u] + bi[i] + dot
+                error = r - r_hat
+                mae_t += abs(error)
 
-            error *= error
-            cum_t_error += error
-        mae_t = mae_t/T.data.shape[0]
-        rmse_t = np.sqrt(cum_t_error/T.data.shape[0])
+                error *= error
+                cum_t_error += error
+            mae_t = mae_t/T.data.shape[0]
+            rmse_t = np.sqrt(cum_t_error/T.data.shape[0])
 
-        rmse_arr[0, iteration] = rmse
-        rmse_arr[1, iteration] = mae_v
-        rmse_arr[2, iteration] = rmse_v
-        rmse_arr[3, iteration] = mae_t
-        rmse_arr[4, iteration] = rmse_t
+            rmse_arr[0, iteration // modulo] = rmse
+            rmse_arr[1, iteration // modulo] = mae_v
+            rmse_arr[2, iteration // modulo] = rmse_v
+            rmse_arr[3, iteration // modulo] = mae_t
+            rmse_arr[4, iteration // modulo] = rmse_t
 
-        ortho_dev[0, iteration] = deviation_from_ortho(pu)
-        ortho_dev[1, iteration] = deviation_from_ortho(qi)
+            ortho_dev[0, iteration // modulo] = deviation_from_ortho(pu)
+            ortho_dev[1, iteration // modulo] = deviation_from_ortho(qi)
 
-        if iteration % 10 == 0:
             np.savez('{}/temp_{}.npz'.format(svd_path, iteration), bu=bu, bi=bi, pu=pu, qi=qi)
-        if verbose:
+
+            if verbose:
+                stop = time.time()
+                duration = stop-start
+                _results = 'rmse_t:{:.6f} mae_t:{:.6f} P_dev:{:.6f}, Q_dev:{:.6f}'.format(rmse_t, mae_t,
+                                                                                          ortho_dev[0, iteration//modulo],
+                                                                                          ortho_dev[1, iteration//modulo])
+                print('t:{:.2f} it:{} rmse:{:.6f} rmse_v:{:.6f} mae_v:{:.6f} {}'.format(duration,
+                                                                                        iteration,
+                                                                                        rmse,
+                                                                                        rmse_v,
+                                                                                        mae_v,
+                                                                                        _results))
+
+        else:
             stop = time.time()
             duration = stop-start
-            print('t:{:.2f} it:{} rmse:{:.6f} rmse_v:{:.6f} mae_v:{:.6f} rmse_t:{:.6f} mae_t:{:.6f} P_dev:{:.6f}, Q_dev:{:.6f}'.format(duration,
-                                                                                                                                       iteration,
-                                                                                                                                       rmse,
-                                                                                                                                       rmse_v,
-                                                                                                                                       mae_v,
-                                                                                                                                       rmse_t,
-                                                                                                                                       mae_t,
-                                                                                                                                       ortho_dev[0, iteration],
-                                                                                                                                       ortho_dev[1, iteration]))
+            print('t:{:.2f}'.format(duration))
     return mu, bu, bi, pu, qi, rmse_arr, ortho_dev
 
 
