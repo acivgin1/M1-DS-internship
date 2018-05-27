@@ -1,5 +1,4 @@
 cimport cython
-
 import numpy as np
 cimport numpy as np
 import time
@@ -21,30 +20,27 @@ class SvdCluster:
         self.qi = np.array([]).reshape(-1, 1)
 
         self.rmse_arr = np.array([])
-
-        self.mae_t_arr = np.array([])
-        self.rmse_t_arr = np.array([])
-
         self.mae_v_arr = np.array([])
         self.rmse_v_arr = np.array([])
+        self.mae_t_arr = np.array([])
+        self.rmse_t_arr = np.array([])
 
         self.pu_dev = np.array([])
         self.qi_dev = np.array([])
 
     def svd_train(self, R, V, T):
-        mu, bu, bi, pu, qi, rmse_arr, ortho_dev = _svd_train(R, V, T,
-                                                             self.k_order, self.gamma, self.beta,
-                                                             self.num_of_iters, self.verbose, self.svd_path,
-                                                             self.bu, self.bi, self.pu, self.qi)
+        mu, bu, bi, pu, qi, rmse, ortho_dev = _svd_train(R, V, T,
+                                                         self.k_order, self.gamma, self.beta,
+                                                         self.num_of_iters, self.verbose, self.svd_path,
+                                                         self.bu, self.bi, self.pu, self.qi)
+
         self.mu, self.bu, self.bi, self.pu, self.qi = (mu, bu, bi, pu, qi)
 
-        self.rmse_arr = np.append(self.rmse_arr, rmse_arr[0, :])
-
-        self.mae_v_arr = np.append(self.mae_v_arr, rmse_arr[1, :])
-        self.rmse_v_arr = np.append(self.rmse_v_arr, rmse_arr[2, :])
-
-        self.mae_t_arr = np.append(self.mae_t_arr, rmse_arr[3, :])
-        self.rmse_v_arr = np.append(self.rmse_v_arr, rmse_arr[4, :])
+        self.rmse_arr = np.append(self.rmse_arr, rmse[0, :])
+        self.mae_v_arr = np.append(self.mae_v_arr, rmse[1, :])
+        self.rmse_v_arr = np.append(self.rmse_v_arr, rmse[2, :])
+        self.mae_t_arr = np.append(self.mae_t_arr, rmse[3, :])
+        self.rmse_t_arr = np.append(self.rmse_t_arr, rmse[4, :])
 
         self.pu_dev = np.append(self.pu_dev, ortho_dev[0, :])
         self.qi_dev = np.append(self.qi_dev, ortho_dev[1, :])
@@ -58,8 +54,8 @@ class SvdCluster:
     def plot_progress(self):
         plt.figure()
         plt.plot(self.rmse_arr)
-        plt.plot(self.rmse_v_arr)
-        plt.plot(self.mae_v_arr)
+        plt.plot(self.rmse_v_arr + 0.01)
+        plt.plot(self.mae_v_arr + 0.01)
         plt.plot(self.rmse_t_arr)
         plt.plot(self.mae_t_arr)
         plt.grid()
@@ -93,7 +89,8 @@ class SvdCluster:
         np.savez('{}/svd_params.npz'.format(self.svd_path),
                  bu=self.bu, bi=self.bi, pu=self.pu, qi=self.qi,
                  pu_dev=self.pu_dev, qi_dev=self.qi_dev,
-                 rmse_arr=self.rmse_arr, rmse_t_arr=self.rmse_t_arr, mae_t_arr=self.mae_t_arr)
+                 rmse_arr=self.rmse_arr, rmse_v_arr=self.rmse_v_arr, mae_v_arr=self.mae_v_arr,
+                 rmse_t_arr=self.rmse_t_arr, mae_t_arr=self.mae_t_arr)
 
     def load_svd_params(self, mu):
         self.mu = mu
@@ -106,7 +103,10 @@ class SvdCluster:
 
         self.pu_dev = loadz['pu_dev']
         self.qi_dev = loadz['qi_dev']
+
         self.rmse_arr = loadz['rmse_arr']
+        self.rmse_v_arr = loadz['rmse_v_arr']
+        self.mae_v_arr = loadz['mae_v_arr']
         self.rmse_t_arr = loadz['rmse_t_arr']
         self.mae_t_arr = loadz['mae_t_arr']
 
@@ -116,15 +116,8 @@ class SvdCluster:
 def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters, verbose, svd_path,
                np.ndarray[np.double_t] bu_in, np.ndarray[np.double_t] bi_in,
                np.ndarray[np.double_t, ndim=2] pu_in, np.ndarray[np.double_t, ndim=2] qi_in):
-    cdef np.ndarray[np.double_t, ndim=2] rmse_arr
-
-    cdef np.ndarray[np.double_t, ndim=2] ortho_dev
-
-    cdef np.ndarray[np.double_t, mode='c'] bu
-    cdef np.ndarray[np.double_t, mode='c'] bi
-
-    cdef np.ndarray[np.double_t, ndim=2, mode='c'] pu
-    cdef np.ndarray[np.double_t, ndim=2, mode='c'] qi
+    cdef np.ndarray[np.double_t, ndim=2] rmse_arr, ortho_dev, pu, qi
+    cdef np.ndarray[np.double_t] bu, bi
 
     cdef int u, i, k
     cdef double mean, std_dev, one_minus_gb, mu
@@ -144,7 +137,6 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
     if bu_in.size == 0:
         bu = np.random.normal(0, std_dev/10, R.shape[0])
         bi = np.random.normal(0, std_dev/10, R.shape[1])
-
         pu = np.random.normal(mean, std_dev, (R.shape[0], k_order))
         qi = np.random.normal(mean, std_dev, (R.shape[1], k_order))
     else:
@@ -183,9 +175,6 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
 
 
         rmse = np.sqrt(cum_error/R.data.shape[0])
-
-        # mae_v, rmse_v = _svd_predict_dataset(V, mu, &bu, &bi, &pu, &qi)
-        # mae_t, rmse_t = _svd_predict_dataset(T, mu, bu, bi, pu, qi)
 
         # Fadile oprosti
         mae_v = 0
@@ -232,13 +221,15 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
         if verbose:
             stop = time.time()
             duration = stop-start
-            print('t:{:.2f} it:{} rmse:{:.6f} rmse_v:{:.6f} mae_v:{:.6f}'.format(duration,
-                                                                                 iteration,
-                                                                                 rmse,
-                                                                                 rmse_v,
-                                                                                 mae_v))
-            print('rmse_t:{:.6f} mae_t:{:.6f}'.format(rmse_t, mae_t))
-            print('P_dev:{:.6f}, Q_dev:{:.6f}'.format(ortho_dev[0, iteration], ortho_dev[1, iteration]))
+            print('t:{:.2f} it:{} rmse:{:.6f} rmse_v:{:.6f} mae_v:{:.6f} rmse_t:{:.6f} mae_t:{:.6f} P_dev:{:.6f}, Q_dev:{:.6f}'.format(duration,
+                                                                                                                                       iteration,
+                                                                                                                                       rmse,
+                                                                                                                                       rmse_v,
+                                                                                                                                       mae_v,
+                                                                                                                                       rmse_t,
+                                                                                                                                       mae_t,
+                                                                                                                                       ortho_dev[0, iteration],
+                                                                                                                                       ortho_dev[1, iteration]))
     return mu, bu, bi, pu, qi, rmse_arr, ortho_dev
 
 
@@ -289,6 +280,6 @@ def deviation_from_ortho(np.ndarray[np.double_t, ndim=2] M, size=1000):
     return np.abs(mask*(np.dot(extract, extract.transpose()))).sum()/size/size
 
 
-print('Hello')
+print('svd_clustering.pyx - build successful')
 if __name__ == '__main__':
     print('Hello')
