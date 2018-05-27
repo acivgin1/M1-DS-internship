@@ -7,6 +7,7 @@ from matplotlib import pyplot as plt
 from scipy.sparse import csr_matrix, coo_matrix
 from scipy.sparse import save_npz, load_npz
 
+from visualizations import ratings_per_row, average_ratings_per_row
 
 def ratings_to_sparse_matrix(data_path):
     movie_lens_path = '{}/ratings_information'.format(data_path)
@@ -38,29 +39,6 @@ def remove_rows_with_less_than_n(sparse_matrix, n=10, data_path=None):
     return sparse_matrix
 
 
-def visualize_sparse(sparse_matrix):
-    num_of_ratings_per_user = np.sort(np.diff(sparse_matrix.indptr))
-    last_num = 0
-    for i in range(1, 11):
-        print('users with {} ratings'.format(i), end=' ')
-        print(np.where(num_of_ratings_per_user > i)[0][0] - last_num)
-        last_num = np.where(num_of_ratings_per_user > i)[0][0]
-    print(np.where(num_of_ratings_per_user > 10)[0][0])
-    print(num_of_ratings_per_user[-10:])
-
-    plt.figure()
-    start = np.log10(num_of_ratings_per_user.min())
-    stop = np.log10(num_of_ratings_per_user.max())
-    bins = np.logspace(start, stop, num=50, endpoint=True)
-
-    plt.xscale('log')
-    plt.xticks(bins, np.floor(bins).astype(np.uint16), rotation='vertical')
-
-    plt.hist(num_of_ratings_per_user, bins=bins, log=False)
-
-    plt.show()
-
-
 def shuffle_sparse(sparse_matrix):
     help = np.vstack((sparse_matrix.row, sparse_matrix.col, sparse_matrix.data)).transpose()
 
@@ -70,7 +48,9 @@ def shuffle_sparse(sparse_matrix):
     return spar
 
 
-def train_and_test_from_sparse(sm, data_path, ratio):
+def partition_data_from_sparse(sm, ratio):
+    sm = shuffle_sparse(sm)
+
     test_len = int(sm.data.shape[0] * (1 - ratio))
 
     test_list = np.empty([3, test_len])
@@ -92,55 +72,90 @@ def train_and_test_from_sparse(sm, data_path, ratio):
             seen_row_set.add(sm.row[i])
             seen_col_set.add(sm.col[i])
 
-    # train_matrix = sparse.coo_matrix((sm.data[0:train_len], (sm.row[0:train_len], sm.col[0:train_len])))
-    # test_matrix = sparse.coo_matrix((sm.data[train_len:], (sm.row[train_len:], sm.col[train_len:])))
     train_matrix = coo_matrix((train_list[2, :], (train_list[0, :].astype(np.uint32), train_list[1, :].astype(np.uint32))))
     del train_list
     test_matrix = coo_matrix((test_list[2, :], (test_list[0, :].astype(np.uint32), test_list[1, :].astype(np.uint32))))
     del test_list
 
-    save_npz('{}/train_ratings.npz'.format(data_path), train_matrix)
-    save_npz('{}/test_ratings.npz'.format(data_path), test_matrix)
-
-
-def load_train_test(data_path):
-    train_matrix = load_npz('{}/train_ratings.npz'.format(data_path))
-    test_matrix = load_npz('{}/test_ratings.npz'.format(data_path))
     return train_matrix, test_matrix
+
+
+def load_train_validation_test(data_path):
+    train_matrix = load_npz('{}/train_ratings.npz'.format(data_path))
+    validation_matrix = load_npz('{}/validation_ratings.npz'.format(data_path))
+    test_matrix = load_npz('{}/test_ratings.npz'.format(data_path))
+
+    return train_matrix, validation_matrix, test_matrix
 
 
 def main():
     cur_path = os.path.dirname(__file__)
     data_path = os.path.relpath('../Data', cur_path)
-
     # ratings_to_sparse_matrix(data_path)
 
     sparse_matrix = load_npz('{}/{}.npz'.format(data_path, 'sparse_rating_matrix'))
-
-    # visualize_sparse(sparse_matrix)
-
     cA = sparse_matrix.tocoo(copy=False)
 
-    # cA = shuffle_sparse(cA)
-    # train_and_test_from_sparse(cA, data_path, ratio=0.8)
-    train, test = load_train_test(data_path)
+    # data1, test = partition_data_from_sparse(cA, ratio=0.8)
+    # save_npz('{}/test_ratings.npz'.format(data_path), test)
+    #
+    # train, validation = partition_data_from_sparse(data1, ratio=0.8)
+    # save_npz('{}/train_ratings.npz'.format(data_path), train)
+    # save_npz('{}/validation_ratings.npz'.format(data_path), validation)
 
-    print(train.row.min())
-    print(train.row.max())
-    print(train.col.min())
-    print(train.col.max())
+    train, validation, test = load_train_validation_test(data_path)
 
-    print(test.row.min())
-    print(test.row.max())
-    print(test.col.min())
-    print(test.col.max())
-
-    print(cA.row.min())
-    print(cA.row.max())
-    print(cA.col.min())
-    print(cA.col.max())
-    return cA
+    # print(train.row.min())
+    # print(train.row.max())
+    # print(train.col.min())
+    # print(train.col.max())
+    # print()
+    #
+    # print(validation.row.min())
+    # print(validation.row.max())
+    # print(validation.col.min())
+    # print(validation.col.max())
+    # print()
+    #
+    # print(test.row.min())
+    # print(test.row.max())
+    # print(test.col.min())
+    # print(test.col.max())
+    # print()
+    #
+    # print(cA.row.min())
+    # print(cA.row.max())
+    # print(cA.col.min())
+    # print(cA.col.max())
+    return train, test, validation
 
 
 if __name__ == '__main__':
-    ret = main()
+    a, b, c = main()
+    user_a = a.tocsr()
+    user_b = b.tocsr()
+    user_c = c.tocsr()
+
+    user_a.data = user_a.data / 10
+    user_b.data = user_b.data / 10
+    user_c.data = user_c.data / 10
+
+    movie_a = csr_matrix((a.data/10, (a.col, a.row)), shape=(a.col.max() + 1, a.row.max() + 1))
+    movie_b = csr_matrix((b.data/10, (b.col, b.row)), shape=(b.col.max() + 1, b.row.max() + 1))
+    movie_c = csr_matrix((c.data/10, (c.col, c.row)), shape=(c.col.max() + 1, c.row.max() + 1))
+
+    ratings_per_row(user_a, 'Users', 'Training data: Number of ratings per user', True)
+    ratings_per_row(user_b, 'Users', 'Test data: Number of ratings per user', True)
+    ratings_per_row(user_c, 'Users', 'Validation: Number of ratings per user', True)
+
+    ratings_per_row(movie_a, 'Movies', 'Training data: Number of ratings per movies', True)
+    ratings_per_row(movie_b, 'Movies', 'Test data: Number of ratings per movies', True)
+    ratings_per_row(movie_c, 'Movies', 'Validation: Number of ratings per movies', True)
+
+    average_ratings_per_row(user_a, 'Training data: Average rating per user')
+    average_ratings_per_row(user_b, 'Test data: Average rating per user', ymax=80000)
+    average_ratings_per_row(user_c, 'Validation: Average rating per user', ymax=80000)
+
+    average_ratings_per_row(movie_a, 'Training data: Average rating per movie')
+    average_ratings_per_row(movie_b, 'Test data: Average rating per movie', ymax=8000)
+    average_ratings_per_row(movie_c, 'Validation: Average rating per movie', ymax=8000)

@@ -1,4 +1,5 @@
 cimport cython
+
 import numpy as np
 cimport numpy as np
 import time
@@ -20,73 +21,63 @@ class SvdCluster:
         self.qi = np.array([]).reshape(-1, 1)
 
         self.rmse_arr = np.array([])
-        self.rmse_t_arr = np.array([])
+
         self.mae_t_arr = np.array([])
+        self.rmse_t_arr = np.array([])
+
+        self.mae_v_arr = np.array([])
+        self.rmse_v_arr = np.array([])
 
         self.pu_dev = np.array([])
         self.qi_dev = np.array([])
 
-    def svd_train(self, R, V):
-        mu, bu, bi, pu, qi, rmse_arr, rmse_t_arr, mae_t_arr, pu_dev, qi_dev = _svd_train(R,
-                                                                                         V,
-                                                                                         self.k_order,
-                                                                                         self.gamma,
-                                                                                         self.beta,
-                                                                                         self.num_of_iters,
-                                                                                         self.verbose,
-                                                                                         self.svd_path,
-                                                                                         self.bu,
-                                                                                         self.bi,
-                                                                                         self.pu,
-                                                                                         self.qi)
+    def svd_train(self, R, V, T):
+        mu, bu, bi, pu, qi, rmse_arr, ortho_dev = _svd_train(R, V, T,
+                                                             self.k_order, self.gamma, self.beta,
+                                                             self.num_of_iters, self.verbose, self.svd_path,
+                                                             self.bu, self.bi, self.pu, self.qi)
         self.mu, self.bu, self.bi, self.pu, self.qi = (mu, bu, bi, pu, qi)
 
-        self.rmse_arr = np.append(self.rmse_arr, rmse_arr)
-        self.rmse_t_arr = np.append(self.rmse_t_arr, rmse_t_arr)
-        self.mae_t_arr = np.append(self.mae_t_arr, mae_t_arr)
+        self.rmse_arr = np.append(self.rmse_arr, rmse_arr[0, :])
 
-        self.pu_dev = np.append(self.pu_dev, pu_dev)
-        self.qi_dev = np.append(self.qi_dev, qi_dev)
+        self.mae_v_arr = np.append(self.mae_v_arr, rmse_arr[1, :])
+        self.rmse_v_arr = np.append(self.rmse_v_arr, rmse_arr[2, :])
 
-    def svd_test(self, test_set):
-        cum_error = 0
-        for u, i, r in zip(test_set.row, test_set.col, test_set.data):
-            r_hat = self.svd_predict(u, i)
-            error = (r - r_hat)**2
-            cum_error += error
+        self.mae_t_arr = np.append(self.mae_t_arr, rmse_arr[3, :])
+        self.rmse_v_arr = np.append(self.rmse_v_arr, rmse_arr[4, :])
 
-        rmse = np.sqrt(cum_error / test_set.data.shape[0])
-        return rmse
+        self.pu_dev = np.append(self.pu_dev, ortho_dev[0, :])
+        self.qi_dev = np.append(self.qi_dev, ortho_dev[1, :])
+
+    def svd_predict_dataset(self, T):
+        return _svd_predict_dataset(T, self.mu, self.bu, self.bi, self.pu, self.qi)
+
+    def svd_predict(self, u, i):
+        return _svd_predict(u, i, self.mu, self.bu, self.bi, self.pu, self.qi)
 
     def plot_progress(self):
         plt.figure()
         plt.plot(self.rmse_arr)
+        plt.plot(self.rmse_v_arr)
+        plt.plot(self.mae_v_arr)
         plt.plot(self.rmse_t_arr)
         plt.plot(self.mae_t_arr)
         plt.grid()
-        plt.legend(['Training', 'Testing', 'MAE: testing'])
+        plt.legend(['Training', 'Validation', 'MAE: validation', 'Testing', 'MAE: testing'])
         plt.xlabel('Iteration')
         plt.ylabel('Errors')
         plt.show()
 
         plt.figure()
         plt.plot(np.diff(self.rmse_arr))
+        plt.plot(np.diff(self.rmse_v_arr))
+        plt.plot(np.diff(self.mae_v_arr))
         plt.plot(np.diff(self.rmse_t_arr))
         plt.plot(np.diff(self.mae_t_arr))
         plt.grid()
-        plt.legend(['Training', 'Testing', 'MAE: testing'])
+        plt.legend(['Training', 'Validation', 'MAE: validation', 'Testing', 'MAE: testing'])
         plt.xlabel('Iteration')
         plt.ylabel('Errors first deriv.')
-        plt.show()
-
-        plt.figure()
-        plt.plot(np.diff(self.rmse_arr, n=2))
-        plt.plot(np.diff(self.rmse_t_arr, n=2))
-        plt.plot(np.diff(self.mae_t_arr, n=2))
-        plt.grid()
-        plt.legend(['Training', 'Testing', 'MAE: testing'])
-        plt.xlabel('Iteration')
-        plt.ylabel('Errors second deriv.')
         plt.show()
 
         plt.figure()
@@ -98,16 +89,15 @@ class SvdCluster:
         plt.ylabel('Dev from ortho')
         plt.show()
 
-
     def save_svd_params(self):
-        np.savez('{}/svd_params.npy'.format(self.svd_path),
+        np.savez('{}/svd_params.npz'.format(self.svd_path),
                  bu=self.bu, bi=self.bi, pu=self.pu, qi=self.qi,
                  pu_dev=self.pu_dev, qi_dev=self.qi_dev,
                  rmse_arr=self.rmse_arr, rmse_t_arr=self.rmse_t_arr, mae_t_arr=self.mae_t_arr)
 
     def load_svd_params(self, mu):
         self.mu = mu
-        loadz = np.load('{}/svd_params.npy'.format(self.svd_path))
+        loadz = np.load('{}/svd_params.npz'.format(self.svd_path))
 
         self.bu = loadz['bu']
         self.bi = loadz['bi']
@@ -123,27 +113,24 @@ class SvdCluster:
 
 @cython.boundscheck(False) # turn off bounds-checking for entire function
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
-def _svd_train(R, V, int k_order, double gamma, double beta, int num_of_iters, verbose, svd_path,
+def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters, verbose, svd_path,
                np.ndarray[np.double_t] bu_in, np.ndarray[np.double_t] bi_in,
                np.ndarray[np.double_t, ndim=2] pu_in, np.ndarray[np.double_t, ndim=2] qi_in):
-    cdef np.ndarray[np.double_t] rmse_arr
-    cdef np.ndarray[np.double_t] rmse_t_arr
-    cdef np.ndarray[np.double_t] mae_t_arr
+    cdef np.ndarray[np.double_t, ndim=2] rmse_arr
 
-    cdef np.ndarray[np.double_t] pu_dev
-    cdef np.ndarray[np.double_t] qi_dev
+    cdef np.ndarray[np.double_t, ndim=2] ortho_dev
 
-    cdef np.ndarray[np.double_t] bu
-    cdef np.ndarray[np.double_t] bi
+    cdef np.ndarray[np.double_t, mode='c'] bu
+    cdef np.ndarray[np.double_t, mode='c'] bi
 
-    cdef np.ndarray[np.double_t, ndim=2] pu
-    cdef np.ndarray[np.double_t, ndim=2] qi
+    cdef np.ndarray[np.double_t, ndim=2, mode='c'] pu
+    cdef np.ndarray[np.double_t, ndim=2, mode='c'] qi
 
     cdef int u, i, k
     cdef double mean, std_dev, one_minus_gb, mu
-    cdef double r, r_hat, error, cum_error, cum_t_error
+    cdef double r, r_hat, error, cum_error, cum_t_error, cum_v_error
     cdef double dot, puk, qik
-    cdef double rmse, rmse_t, mae_t
+    cdef double rmse, rmse_t, mae_t, rmse_v, mae_v
 
     mu = (R.data.sum()/R.data.shape)[0]  # andrew NG recommends this
 
@@ -151,12 +138,8 @@ def _svd_train(R, V, int k_order, double gamma, double beta, int num_of_iters, v
     std_dev = 0.1
     one_minus_gb = 1 - gamma * beta
 
-    rmse_arr = np.empty(num_of_iters, dtype=np.double)
-    rmse_t_arr = np.empty(num_of_iters, dtype=np.double)
-    mae_t_arr = np.empty(num_of_iters, dtype=np.double)
-
-    pu_dev = np.empty(num_of_iters, dtype=np.double)
-    qi_dev = np.empty(num_of_iters, dtype=np.double)
+    rmse_arr = np.empty((5, num_of_iters), dtype=np.double)
+    ortho_dev = np.empty((2, num_of_iters), dtype=np.double)
 
     if bu_in.size == 0:
         bu = np.random.normal(0, std_dev/10, R.shape[0])
@@ -198,39 +181,90 @@ def _svd_train(R, V, int k_order, double gamma, double beta, int num_of_iters, v
                 qi[i, k] *= one_minus_gb
                 qi[i, k] += error*puk
 
-        cum_t_error = 0
-        mae_t = 0
+
+        rmse = np.sqrt(cum_error/R.data.shape[0])
+
+        # mae_v, rmse_v = _svd_predict_dataset(V, mu, &bu, &bi, &pu, &qi)
+        # mae_t, rmse_t = _svd_predict_dataset(T, mu, bu, bi, pu, qi)
+
+        # Fadile oprosti
+        mae_v = 0
+        cum_v_error = 0
         for u, i, r in zip(V.row, V.col, V.data):
-            r_hat = _svd_predict(u, i, mu, bu, bi, pu, qi)
+            dot = 0
+            for k in range(qi.shape[1]):
+                dot += pu[u, k] * qi[i, k]
+            r_hat = mu + bu[u] + bi[i] + dot
+            error = r - r_hat
+            mae_v += abs(error)
+
+            error *= error
+            cum_v_error += error
+        mae_v = mae_v/V.data.shape[0]
+        rmse_v = np.sqrt(cum_v_error/V.data.shape[0])
+
+        mae_t = 0
+        cum_t_error = 0
+        for u, i, r in zip(T.row, T.col, T.data):
+            dot = 0
+            for k in range(qi.shape[1]):
+                dot += pu[u, k] * qi[i, k]
+            r_hat = mu + bu[u] + bi[i] + dot
             error = r - r_hat
             mae_t += abs(error)
 
             error *= error
             cum_t_error += error
+        mae_t = mae_t/T.data.shape[0]
+        rmse_t = np.sqrt(cum_t_error/T.data.shape[0])
 
-        rmse = np.sqrt(cum_error/R.data.shape[0])
-        rmse_t = np.sqrt(cum_t_error/V.data.shape[0])
-        mae_t = mae_t/V.data.shape[0]
+        rmse_arr[0, iteration] = rmse
+        rmse_arr[1, iteration] = mae_v
+        rmse_arr[2, iteration] = rmse_v
+        rmse_arr[3, iteration] = mae_t
+        rmse_arr[4, iteration] = rmse_t
 
-        rmse_arr[iteration] = rmse
-        rmse_t_arr[iteration] = rmse_t
-        mae_t_arr[iteration] = mae_t
-
-        pu_dev[iteration] = deviation_from_ortho(pu)
-        qi_dev[iteration] = deviation_from_ortho(qi)
+        ortho_dev[0, iteration] = deviation_from_ortho(pu)
+        ortho_dev[1, iteration] = deviation_from_ortho(qi)
 
         if iteration % 10 == 0:
-            np.savez('{}/temp_{}.npy'.format(svd_path, iteration), bu=bu, bi=bi, pu=pu, qi=qi)
+            np.savez('{}/temp_{}.npz'.format(svd_path, iteration), bu=bu, bi=bi, pu=pu, qi=qi)
         if verbose:
             stop = time.time()
             duration = stop-start
-            print('t:{:.2f} it:{} rmse:{:.6f} rmse_t:{:.6f} mae_t:{:.6f}'.format(duration,
+            print('t:{:.2f} it:{} rmse:{:.6f} rmse_v:{:.6f} mae_v:{:.6f}'.format(duration,
                                                                                  iteration,
                                                                                  rmse,
-                                                                                 rmse_t,
-                                                                                 mae_t))
-            print('Pu_ort_dev:{:.6f}, Qi_ort_dev:{:.6f}'.format(pu_dev[iteration], qi_dev[iteration]))
-    return mu, bu, bi, pu, qi, rmse_arr, rmse_t_arr, mae_t_arr, pu_dev, qi_dev
+                                                                                 rmse_v,
+                                                                                 mae_v))
+            print('rmse_t:{:.6f} mae_t:{:.6f}'.format(rmse_t, mae_t))
+            print('P_dev:{:.6f}, Q_dev:{:.6f}'.format(ortho_dev[0, iteration], ortho_dev[1, iteration]))
+    return mu, bu, bi, pu, qi, rmse_arr, ortho_dev
+
+
+@cython.boundscheck(False) # turn off bounds-checking for entire function
+@cython.wraparound(False)  # turn off negative index wrapping for entire function
+cdef _svd_predict_dataset(T, mu,
+                          np.ndarray[np.double_t] bu, np.ndarray[np.double_t] bi,
+                          np.ndarray[np.double_t, ndim=2] pu, np.ndarray[np.double_t, ndim=2] qi):
+    cdef int k
+    cdef double mae_t, cum_t_error, r_hat, error, dot
+    mae_t = 0
+    cum_t_error = 0
+    for u, i, r in zip(T.row, T.col, T.data):
+        dot = 0
+        for k in range(qi.shape[1]):
+            dot += pu[u, k] * qi[i, k]
+        r_hat = mu + bu[u] + bi[i] + dot
+        error = r - r_hat
+        mae_t += abs(error)
+
+        error *= error
+        cum_t_error += error
+    mae_t = mae_t/T.data.shape[0]
+    rmse_t = np.sqrt(cum_t_error/T.data.shape[0])
+    return mae_t, rmse_t
+
 
 @cython.boundscheck(False) # turn off bounds-checking for entire function
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
@@ -243,7 +277,6 @@ def _svd_predict(u, i, mu,
     dot = 0
     for k in range(qi.shape[1]):
         dot += pu[u, k] * qi[i, k]
-
     return mu + bu[u] + bi[i] + dot
 
 @cython.boundscheck(False) # turn off bounds-checking for entire function
