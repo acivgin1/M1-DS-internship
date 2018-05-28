@@ -4,6 +4,18 @@ cimport numpy as np
 import time
 from matplotlib import pyplot as plt
 
+
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
+
 class SvdCluster:
     def __init__(self, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, verbose=True, svd_path=None):
         self.k_order = k_order
@@ -28,13 +40,16 @@ class SvdCluster:
         self.pu_dev = np.array([])
         self.qi_dev = np.array([])
 
-    def svd_train(self, R, V, T, modulo=1):
+    def svd_train(self, R, V, T, print_step_size=1):
         mu, bu, bi, pu, qi, rmse, ortho_dev = _svd_train(R, V, T,
                                                          self.k_order, self.gamma, self.beta,
                                                          self.num_of_iters, self.verbose, self.svd_path,
-                                                         self.bu, self.bi, self.pu, self.qi, modulo)
+                                                         self.bu, self.bi, self.pu, self.qi, print_step_size)
 
         self.mu, self.bu, self.bi, self.pu, self.qi = (mu, bu, bi, pu, qi)
+
+        # print(rmse)
+        # print(ortho_dev)
 
         self.rmse_arr = np.append(self.rmse_arr, rmse[0, :])
         self.mae_v_arr = np.append(self.mae_v_arr, rmse[1, :])
@@ -115,14 +130,14 @@ class SvdCluster:
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
 def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters, verbose, svd_path,
                np.ndarray[np.double_t] bu_in, np.ndarray[np.double_t] bi_in,
-               np.ndarray[np.double_t, ndim=2] pu_in, np.ndarray[np.double_t, ndim=2] qi_in, modulo=1):
+               np.ndarray[np.double_t, ndim=2] pu_in, np.ndarray[np.double_t, ndim=2] qi_in, print_step_size=1):
     cdef np.ndarray[np.double_t, ndim=2] rmse_arr, ortho_dev, pu, qi
     cdef np.ndarray[np.double_t] bu, bi
 
     cdef int u, i, k
     cdef double mean, std_dev, one_minus_gb, mu
     cdef double r, r_hat, error, cum_error, cum_t_error, cum_v_error
-    cdef double dot, puk, qik
+    cdef double dot, puk, qik, _puk
     cdef double rmse, rmse_t, mae_t, rmse_v, mae_v
 
     mu = (R.data.sum()/R.data.shape)[0]  # andrew NG recommends this
@@ -131,8 +146,8 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
     std_dev = 0.1
     one_minus_gb = 1 - gamma * beta
 
-    rmse_arr = np.empty((5, round(num_of_iters/modulo + .5)), dtype=np.double)
-    ortho_dev = np.empty((2, round(num_of_iters/modulo + .5)), dtype=np.double)
+    rmse_arr = np.empty((5, round(num_of_iters // print_step_size + .6)), dtype=np.double)
+    ortho_dev = np.empty((2, round(num_of_iters // print_step_size + .6)), dtype=np.double)
 
     if bu_in.size == 0:
         bu = np.random.normal(0, std_dev/10, R.shape[0])
@@ -165,18 +180,21 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
 
             for k in range(k_order):
                 puk = pu[u, k]
+                _puk = puk
                 qik = qi[i, k]
 
-                pu[u, k] *= one_minus_gb
-                pu[u, k] += error*qik
+                puk *= one_minus_gb
+                puk += error*qik
+                pu[u, k] = puk
 
-                qi[i, k] *= one_minus_gb
-                qi[i, k] += error*puk
+                qik *= one_minus_gb
+                qik += error*_puk
+                qi[i, k] = qik
 
 
         rmse = np.sqrt(cum_error/R.data.shape[0])
 
-        if iteration % modulo == 0:
+        if iteration % print_step_size == 0:
             # Fadile oprosti
             mae_v = 0
             cum_v_error = 0
@@ -208,23 +226,30 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
             mae_t = mae_t/T.data.shape[0]
             rmse_t = np.sqrt(cum_t_error/T.data.shape[0])
 
-            rmse_arr[0, iteration // modulo] = rmse
-            rmse_arr[1, iteration // modulo] = mae_v
-            rmse_arr[2, iteration // modulo] = rmse_v
-            rmse_arr[3, iteration // modulo] = mae_t
-            rmse_arr[4, iteration // modulo] = rmse_t
+            rmse_arr[0, iteration // print_step_size] = rmse
+            rmse_arr[1, iteration // print_step_size] = mae_v
+            rmse_arr[2, iteration // print_step_size] = rmse_v
+            rmse_arr[3, iteration // print_step_size] = mae_t
+            rmse_arr[4, iteration // print_step_size] = rmse_t
 
-            ortho_dev[0, iteration // modulo] = deviation_from_ortho(pu)
-            ortho_dev[1, iteration // modulo] = deviation_from_ortho(qi)
+            if iteration > print_step_size:
+                if rmse_arr[1, iteration // print_step_size] - rmse_arr[1, iteration // print_step_size - 1] > 0 or \
+                        rmse_arr[2, iteration // print_step_size] - rmse_arr[2, iteration // print_step_size - 1] > 0:
+                    print('Validation: RMSE or MAE is rising. Stopping the training.')
+                    return mu, bu, bi, pu, qi, rmse_arr, ortho_dev
+
+            ortho_dev[0, iteration // print_step_size] = deviation_from_ortho(pu)
+            ortho_dev[1, iteration // print_step_size] = deviation_from_ortho(qi)
 
             np.savez('{}/temp_{}.npz'.format(svd_path, iteration), bu=bu, bi=bi, pu=pu, qi=qi)
 
             if verbose:
                 stop = time.time()
                 duration = stop-start
-                _results = 'rmse_t:{:.6f} mae_t:{:.6f} P_dev:{:.6f}, Q_dev:{:.6f}'.format(rmse_t, mae_t,
-                                                                                          ortho_dev[0, iteration//modulo],
-                                                                                          ortho_dev[1, iteration//modulo])
+                _results = 'rmse_t:{:.6f} mae_t:{:.6f} P_dev:{:.6f}, Q_dev:{:.6f}'.format(rmse_t,
+                                                                                          mae_t,
+                                                                                          ortho_dev[0, iteration // print_step_size],
+                                                                                          ortho_dev[1, iteration // print_step_size])
                 print('t:{:.2f} it:{} rmse:{:.6f} rmse_v:{:.6f} mae_v:{:.6f} {}'.format(duration,
                                                                                         iteration,
                                                                                         rmse,
@@ -232,10 +257,10 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
                                                                                         mae_v,
                                                                                         _results))
 
-        else:
-            stop = time.time()
-            duration = stop-start
-            print('t:{:.2f}'.format(duration))
+        # else:
+            # stop = time.time()
+            # duration = stop-start
+            # print('t:{:.2f}'.format(duration))
     return mu, bu, bi, pu, qi, rmse_arr, ortho_dev
 
 
@@ -286,6 +311,6 @@ def deviation_from_ortho(np.ndarray[np.double_t, ndim=2] M, size=1000):
     return np.abs(mask*(np.dot(extract, extract.transpose()))).sum()/size/size
 
 
-print('svd_clustering.pyx - build successful')
+print bcolors.OKGREEN + 'BUILD[' + bcolors.WARNING + 'SUCCESS' + bcolors.OKGREEN + '] svd_clustering.pyx' + bcolors.ENDC
 if __name__ == '__main__':
     print('Hello')
