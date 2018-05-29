@@ -66,13 +66,14 @@ class SvdCluster:
     def svd_predict(self, u, i):
         return _svd_predict(u, i, self.mu, self.bu, self.bi, self.pu, self.qi)
 
-    def plot_progress(self):
+    def plot_progress(self, print_step_size=1):
+        t = np.arange(0, self.rmse_arr.size) * print_step_size
         plt.figure()
-        plt.plot(self.rmse_arr)
-        plt.plot(self.rmse_v_arr + 0.01)
-        plt.plot(self.mae_v_arr + 0.01)
-        plt.plot(self.rmse_t_arr)
-        plt.plot(self.mae_t_arr)
+        plt.plot(t, self.rmse_arr)
+        plt.plot(t, self.rmse_v_arr + 0.01)
+        plt.plot(t, self.mae_v_arr + 0.01)
+        plt.plot(t, self.rmse_t_arr)
+        plt.plot(t, self.mae_t_arr)
         plt.grid()
         plt.legend(['Training', 'Validation', 'MAE: validation', 'Testing', 'MAE: testing'])
         plt.xlabel('Iteration')
@@ -80,11 +81,11 @@ class SvdCluster:
         plt.show()
 
         plt.figure()
-        plt.plot(np.diff(self.rmse_arr))
-        plt.plot(np.diff(self.rmse_v_arr))
-        plt.plot(np.diff(self.mae_v_arr))
-        plt.plot(np.diff(self.rmse_t_arr))
-        plt.plot(np.diff(self.mae_t_arr))
+        plt.plot(t[1:], np.diff(self.rmse_arr))
+        plt.plot(t[1:], np.diff(self.rmse_v_arr))
+        plt.plot(t[1:], np.diff(self.mae_v_arr))
+        plt.plot(t[1:], np.diff(self.rmse_t_arr))
+        plt.plot(t[1:], np.diff(self.mae_t_arr))
         plt.grid()
         plt.legend(['Training', 'Validation', 'MAE: validation', 'Testing', 'MAE: testing'])
         plt.xlabel('Iteration')
@@ -92,8 +93,8 @@ class SvdCluster:
         plt.show()
 
         plt.figure()
-        plt.plot(self.pu_dev)
-        plt.plot(self.qi_dev)
+        plt.plot(t, self.pu_dev)
+        plt.plot(t, self.qi_dev)
         plt.grid()
         plt.legend(['Pu', 'Qi'])
         plt.xlabel('Iteration')
@@ -125,6 +126,25 @@ class SvdCluster:
         self.rmse_t_arr = loadz['rmse_t_arr']
         self.mae_t_arr = loadz['mae_t_arr']
 
+    def reduce_movie_vector(self, movie_id_list, movie_rating_list=None):
+        '''
+        Given a movie id list (unsorted) and an optional movie rating_list, coresponding to the movie ids, this method
+        returns a reduced movie vector with rank k
+
+        It performs ru * Qi
+        :param movie_id_list: np.ndarray[np.double_t, ndim=1] An unsorted movie id list
+        :param movie_rating_list: np.ndarray[np.double_t, ndim=1] Corresponding movie ratings if provided by the user
+        :return:
+        '''
+        ru = np.zeros(self.qi.shape[0], dtype=np.double)
+        if movie_rating_list is None:
+            ru[movie_id_list] = self.mu + self.bu[movie_id_list]
+        else:
+            ru[movie_id_list] = movie_rating_list
+        return np.dot(ru, self.qi)
+
+    def give_recommendations_for_user(self, u):
+        return np.dot(self.pu[u], self.qi.transpose()) + self.mu + self.bu[u] + self.bi
 
 @cython.boundscheck(False) # turn off bounds-checking for entire function
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
@@ -232,11 +252,11 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
             rmse_arr[3, iteration // print_step_size] = mae_t
             rmse_arr[4, iteration // print_step_size] = rmse_t
 
-            if iteration > print_step_size:
-                if rmse_arr[1, iteration // print_step_size] - rmse_arr[1, iteration // print_step_size - 1] > 0 or \
-                        rmse_arr[2, iteration // print_step_size] - rmse_arr[2, iteration // print_step_size - 1] > 0:
-                    print('Validation: RMSE or MAE is rising. Stopping the training.')
-                    return mu, bu, bi, pu, qi, rmse_arr, ortho_dev
+            # if iteration > print_step_size:
+            #     if rmse_arr[1, iteration // print_step_size] - rmse_arr[1, iteration // print_step_size - 1] > 0 or \
+            #             rmse_arr[2, iteration // print_step_size] - rmse_arr[2, iteration // print_step_size - 1] > 0:
+            #         print('Validation: RMSE or MAE is rising. Stopping the training.')
+            #         return mu, bu, bi, pu, qi, rmse_arr, ortho_dev
 
             ortho_dev[0, iteration // print_step_size] = deviation_from_ortho(pu)
             ortho_dev[1, iteration // print_step_size] = deviation_from_ortho(qi)
@@ -257,10 +277,10 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
                                                                                         mae_v,
                                                                                         _results))
 
-        # else:
-            # stop = time.time()
-            # duration = stop-start
-            # print('t:{:.2f}'.format(duration))
+        else:
+            stop = time.time()
+            duration = stop-start
+            print('t:{:.2f}'.format(duration))
     return mu, bu, bi, pu, qi, rmse_arr, ortho_dev
 
 

@@ -19,35 +19,28 @@ if __name__ == '__main__':
 
     # num of params (k_order + 1)*(270895 + 176274), for k_order=36 this is 16545253, and we have 16655546 train ratings
 
-    gamma_list = [0.03, 0.01, 0.003, 0.001]
-    beta_list = [0.3, 0.1, 0.03, 0.01, 0.003]
-    min_rmse_v_arr = 100
+    # gamma_list = [0.006, 0.005]
+    # beta_list = [0.06, 0.05, 0.04]
+    # min_rmse_v_arr = 100
+    # best_pair = []
 
-    for gamma in gamma_list:
-        for beta in beta_list:
-            svd_cluster = SvdCluster(k_order=28, gamma=gamma, beta=beta,
-                                     num_of_iters=51, verbose=True, svd_path=svd_path)
-            svd_cluster.svd_train(sA_train, sA_validation, sA_test, print_step_size=25)
-            if np.where(np.diff(svd_cluster.rmse_v_arr) > 0)[0].size > 0:
-                print('Error is rising')
-                continue
-            if svd_cluster.rmse_v_arr[-1] < min_rmse_v_arr:
-                min_rmse_v_arr = svd_cluster.rmse_v_arr[-1]
-                best_pair = [gamma, beta]
-                print('Current best gamma: {} beta: {}'.format(gamma, beta))
-    # svd_cluster = SvdCluster(k_order=75, gamma=0.005, beta=0.02, num_of_iters=100, verbose=True, svd_path=svd_path)
-    # print(best_k_order)
-    # mu = (sA_train.data.sum()/sA_train.data.shape)[0]
-    # svd_cluster.svd_train(sA_train, sA_validation, sA_test, print_step_size=10)
+    # for gamma in gamma_list:
+    #     for beta in beta_list:
+    #         svd_cluster = SvdCluster(k_order=28, gamma=gamma, beta=beta,
+    #                                  num_of_iters=61, verbose=True, svd_path=svd_path)
+    #         svd_cluster.svd_train(sA_train, sA_validation, sA_test, print_step_size=30)
+    #         if np.where(np.diff(svd_cluster.rmse_v_arr) > 0)[0].size > 0:
+    #             print('Error is rising')
+    #             continue
+    #         if svd_cluster.rmse_v_arr[-1] < min_rmse_v_arr:
+    #             min_rmse_v_arr = svd_cluster.rmse_v_arr[-1]
+    #             best_pair = [gamma, beta]
+    #             print('Current best gamma: {} beta: {}'.format(gamma, beta))
+    svd_cluster = SvdCluster(k_order=28, gamma=0.006, beta=0.045, num_of_iters=101, verbose=True, svd_path=svd_path)
+
+    mu = sA_train.data.sum()/sA_train.data.size
+    svd_cluster.load_svd_params(mu)
+
+    # svd_cluster.svd_train(sA_train, sA_validation, sA_test, print_step_size=5)
     # svd_cluster.save_svd_params()
-
-    # svd_cluster.plot_progress()
-
-    # joined_df = pd.read_csv('{}/imdb_movielens.csv'.format(data_path), index_col='movieId')
-    # joined_df.index -= 1
-    # Qi = pd.DataFrame(svd_cluster.qi)
-    # s = joined_df.join(Qi)
-    #
-
-
-
+    svd_cluster.plot_progress(print_step_size=5)
