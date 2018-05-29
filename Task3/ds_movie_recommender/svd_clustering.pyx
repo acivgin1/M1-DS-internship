@@ -146,8 +146,12 @@ class SvdCluster:
 
     def top_n_recommendations(self, movie_id_list, movie_rating_list=None, n=10):
         ru = self.reduce_movie_vector(movie_id_list-1, movie_rating_list)
-        cosine = np.dot(ru, self.qi.transpose())/np.linalg.norm(ru)/np.linalg.norm(self.qi, axis=1)
-        cosine[np.argwhere(np.isnan(cosine))] = 0
+        cosine = np.dot(ru, self.qi.transpose())/np.linalg.norm(ru)
+
+        qi_norm = np.linalg.norm(self.qi, axis=1)
+        cosine[np.argwhere(qi_norm == 0)] = 0
+        qi_norm[np.argwhere(qi_norm == 0)] = 1
+        cosine /= qi_norm
         return cosine.argsort()[-n:][::-1]+1
 
 
@@ -156,7 +160,7 @@ class SvdCluster:
 
     def remove_zero_rating_movies(self, movie_nonzero):
         all_movie_ids = np.arange(0, self.qi.shape[0])
-        zero_movie_ids = np.setdiff1d(all_movie_ids, movie_nonzero)
+        zero_movie_ids = np.setxor1d(all_movie_ids, movie_nonzero, assume_unique=True)
         self.qi[zero_movie_ids] = 0
         return zero_movie_ids
 

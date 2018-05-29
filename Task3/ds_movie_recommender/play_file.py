@@ -14,7 +14,7 @@ def movie_ids_to_movie_list(data_path, movie_ids):
 
 def give_recommendations(movie_list):
     movie_list = np.array(movie_list)
-    if np.isin(movie_list, empty).any():
+    if not np.isin(movie_list-1, movie_nonzero).all():
         print('Film nije u bazi.')
     print(movie_ids_to_movie_list(data_path, movie_list))
     recommend = svd_cluster.top_n_recommendations(movie_list)
@@ -59,7 +59,7 @@ if __name__ == '__main__':
     # svd_cluster.save_svd_params()
     # svd_cluster.plot_progress(print_step_size=5)
 
-    movie_nonzero = sA_test.transpose().nonzero()
-    movie_nonzero = np.unique(movie_nonzero[0])
+    movie_nonzero = sA_train.nonzero()
+    movie_nonzero = np.unique(movie_nonzero[1])
     empty = svd_cluster.remove_zero_rating_movies(movie_nonzero)
 
