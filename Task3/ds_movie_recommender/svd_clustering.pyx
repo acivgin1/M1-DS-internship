@@ -90,6 +90,7 @@ class SvdCluster:
         plt.legend(['Training', 'Validation', 'MAE: validation', 'Testing', 'MAE: testing'])
         plt.xlabel('Iteration')
         plt.ylabel('Errors first deriv.')
+        plt.ylim(ymin=-.001)
         plt.show()
 
         plt.figure()
@@ -143,8 +144,21 @@ class SvdCluster:
             ru[movie_id_list] = movie_rating_list
         return np.dot(ru, self.qi)
 
+    def top_n_recommendations(self, movie_id_list, movie_rating_list=None, n=10):
+        ru = self.reduce_movie_vector(movie_id_list-1, movie_rating_list)
+        cosine = np.dot(ru, self.qi.transpose())/np.linalg.norm(ru)/np.linalg.norm(self.qi, axis=1)
+        cosine[np.argwhere(np.isnan(cosine))] = 0
+        return cosine.argsort()[-n:][::-1]+1
+
+
     def give_recommendations_for_user(self, u):
         return np.dot(self.pu[u], self.qi.transpose()) + self.mu + self.bu[u] + self.bi
+
+    def remove_zero_rating_movies(self, movie_nonzero):
+        all_movie_ids = np.arange(0, self.qi.shape[0])
+        zero_movie_ids = np.setdiff1d(all_movie_ids, movie_nonzero)
+        self.qi[zero_movie_ids] = 0
+        return zero_movie_ids
 
 @cython.boundscheck(False) # turn off bounds-checking for entire function
 @cython.wraparound(False)  # turn off negative index wrapping for entire function

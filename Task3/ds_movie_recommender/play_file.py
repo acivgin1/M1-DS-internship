@@ -7,6 +7,20 @@ import pyximport; pyximport.install()
 from svd_clustering import SvdCluster
 
 
+def movie_ids_to_movie_list(data_path, movie_ids):
+    movies = pd.read_csv('{}/imdb_movielens.csv'.format(data_path), index_col=0)
+    return movies.loc[movie_ids]
+
+
+def give_recommendations(movie_list):
+    movie_list = np.array(movie_list)
+    if np.isin(movie_list, empty).any():
+        print('Film nije u bazi.')
+    print(movie_ids_to_movie_list(data_path, movie_list))
+    recommend = svd_cluster.top_n_recommendations(movie_list)
+    print(movie_ids_to_movie_list(data_path, recommend))
+
+
 if __name__ == '__main__':
     cur_path = os.path.dirname(__file__)
     data_path = os.path.relpath('../Data', cur_path)
@@ -43,4 +57,9 @@ if __name__ == '__main__':
 
     # svd_cluster.svd_train(sA_train, sA_validation, sA_test, print_step_size=5)
     # svd_cluster.save_svd_params()
-    svd_cluster.plot_progress(print_step_size=5)
+    # svd_cluster.plot_progress(print_step_size=5)
+
+    movie_nonzero = sA_test.transpose().nonzero()
+    movie_nonzero = np.unique(movie_nonzero[0])
+    empty = svd_cluster.remove_zero_rating_movies(movie_nonzero)
+
