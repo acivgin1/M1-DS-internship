@@ -3,7 +3,6 @@ import os
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from matplotlib import pyplot as plt
 from scipy.sparse import csr_matrix, coo_matrix
 from scipy.sparse import save_npz, load_npz
 

@@ -1,7 +1,8 @@
+import time
+
 cimport cython
 import numpy as np
 cimport numpy as np
-import time
 from matplotlib import pyplot as plt
 
 
@@ -104,15 +105,16 @@ class SvdCluster:
 
     def save_svd_params(self):
         np.savez('{}/svd_params.npz'.format(self.svd_path),
+                 mu=self.mu,
                  bu=self.bu, bi=self.bi, pu=self.pu, qi=self.qi,
                  pu_dev=self.pu_dev, qi_dev=self.qi_dev,
                  rmse_arr=self.rmse_arr, rmse_v_arr=self.rmse_v_arr, mae_v_arr=self.mae_v_arr,
                  rmse_t_arr=self.rmse_t_arr, mae_t_arr=self.mae_t_arr)
 
-    def load_svd_params(self, mu):
-        self.mu = mu
+    def load_svd_params(self):
         loadz = np.load('{}/svd_params.npz'.format(self.svd_path))
 
+        self.mu = loadz['mu']
         self.bu = loadz['bu']
         self.bi = loadz['bi']
         self.pu = loadz['pu']
@@ -139,7 +141,7 @@ class SvdCluster:
         '''
         ru = np.zeros(self.qi.shape[0], dtype=np.double)
         if movie_rating_list is None:
-            ru[movie_id_list] = self.mu + self.bu[movie_id_list]
+            ru[movie_id_list] = self.mu + self.bi[movie_id_list]
         else:
             ru[movie_id_list] = movie_rating_list
         return np.dot(ru, self.qi)
@@ -270,11 +272,11 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
             rmse_arr[3, iteration // print_step_size] = mae_t
             rmse_arr[4, iteration // print_step_size] = rmse_t
 
-            # if iteration > print_step_size:
-            #     if rmse_arr[1, iteration // print_step_size] - rmse_arr[1, iteration // print_step_size - 1] > 0 or \
-            #             rmse_arr[2, iteration // print_step_size] - rmse_arr[2, iteration // print_step_size - 1] > 0:
-            #         print('Validation: RMSE or MAE is rising. Stopping the training.')
-            #         return mu, bu, bi, pu, qi, rmse_arr, ortho_dev
+            if iteration > print_step_size:
+                if rmse_arr[1, iteration // print_step_size] - rmse_arr[1, iteration // print_step_size - 1] > 0 or \
+                        rmse_arr[2, iteration // print_step_size] - rmse_arr[2, iteration // print_step_size - 1] > 0:
+                    print('Validation: RMSE or MAE is rising. Stopping the training.')
+                    return mu, bu, bi, pu, qi, rmse_arr, ortho_dev
 
             ortho_dev[0, iteration // print_step_size] = deviation_from_ortho(pu)
             ortho_dev[1, iteration // print_step_size] = deviation_from_ortho(qi)
