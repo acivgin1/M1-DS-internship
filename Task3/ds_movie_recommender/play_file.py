@@ -7,15 +7,16 @@ from svd_clustering import SvdCluster
 
 from movie_recommender import SmartQi
 
+GAMMA_LIST = [0.006, 0.005]
+BETA_LIST = [0.06, 0.05, 0.04]
+
 
 def cross_validation(sA_train, sA_validation, sA_test, svd_path):
-    gamma_list = [0.006, 0.005]
-    beta_list = [0.06, 0.05, 0.04]
     min_rmse_v_arr = 100
     best_pair = []
 
-    for gamma in gamma_list:
-        for beta in beta_list:
+    for gamma in GAMMA_LIST:
+        for beta in BETA_LIST:
             svd_cluster = SvdCluster(k_order=28, gamma=gamma, beta=beta,
                                      num_of_iters=61, verbose=True, svd_path=svd_path)
             svd_cluster.svd_train(sA_train, sA_validation, sA_test, print_step_size=30)
@@ -29,7 +30,8 @@ def cross_validation(sA_train, sA_validation, sA_test, svd_path):
     return best_pair, min_rmse_v_arr
 
 
-def training(sa_train, sa_validation, sa_test, data_path, best_params=(0.006, 0.045), k_order=28):
+def training(sa_train, sa_validation, sa_test, data_path,
+             best_params=(0.006, 0.045), k_order=28, continue_from_save=False):
     svd_path = '{}/SVD_path'.format(data_path)
     svd_cluster = SvdCluster(k_order=k_order,
                              gamma=best_params[0],
@@ -37,8 +39,8 @@ def training(sa_train, sa_validation, sa_test, data_path, best_params=(0.006, 0.
                              num_of_iters=101,
                              verbose=True,
                              svd_path=svd_path)
-
-    # svd_cluster.load_svd_params()
+    if continue_from_save:
+        svd_cluster.load_svd_params()
 
     svd_cluster.svd_train(sa_train, sa_validation, sa_test, print_step_size=3)
     svd_cluster.save_svd_params()
@@ -46,7 +48,7 @@ def training(sa_train, sa_validation, sa_test, data_path, best_params=(0.006, 0.
     return svd_cluster
 
 
-def svd_cluster(data_path):
+def load_data_and_train(data_path):
     sa_train, sa_validation, sa_test = load_train_validation_test(data_path)
 
     sa_train.data = sa_train.data.astype(np.double) / 10
@@ -64,6 +66,5 @@ if __name__ == '__main__':
     data_path = os.path.relpath('../Data', cur_path)
 
     smartqi = SmartQi(data_path)
-    smartqi.give_n_recommendations([109487])
-    n = input('waiting...')
+    smartqi.give_n_recommendations([122904, 122918], [10, -5])
 

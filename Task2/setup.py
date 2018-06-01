@@ -4,8 +4,7 @@ requirements = [
     'numpy',
     'pandas',
     'scikit-learn',
-    'matplotlib',
-    'scipy'
+    'matplotlib'
 ]
 
 setup(

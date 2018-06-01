@@ -14,8 +14,8 @@ requirements = [
 setup(
     name='ds_movie_recommender',
     version='1.0',
-    description='A useful module',
-    author='Man Foo',
+    description='A movie recommender algorithm based around sparse SVD',
+    author='Amar Civgin',
     author_email='amar.civgin@gmail.com',
     packages=['ds_movie_recommender'],
     install_requires=requirements,

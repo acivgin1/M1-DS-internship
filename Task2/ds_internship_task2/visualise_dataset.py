@@ -70,7 +70,7 @@ def plot_age_title_class(features, labels, data_path):
         else:
             ax.scatter(elem[2], elem[1], elem[0], s=(1.2*elem[3]+2)**2, color='b', marker='o')
 
-    fig.savefig('{}/Images/Scatter.png'.format(data_path), bbox_inches='tight')
+    fig.savefig('{}/Images/Age_Title_Class_Fam_size.png'.format(data_path), bbox_inches='tight')
 
     with open('{}/Pickles/age_title_class.pickle'.format(data_path), 'wb') as fid:
         pickle.dump(ax, fid)
@@ -82,7 +82,7 @@ def load_and_plot_pickle(filename):
         plt.show()
 
 
-def plot_features_and_labels(df, data_path, dataset_id):
+def plot_features_and_labels(df, data_path):
     del df['surname'], df['name'], df['sex'], df['died'], df['age_interval']
     labels = df['survived'].as_matrix()
     del df['survived']
@@ -135,7 +135,7 @@ def create_visualisations(dataset_id=14, data_path=None, show_last_plot=False):
 
     plot_age_histograms(df, dataset_id=dataset_id, data_path=data_path)
     create_survivor_groups(df, data_path)
-    plot_features_and_labels(df, data_path, dataset_id)
+    plot_features_and_labels(df, data_path)
     if show_last_plot:
         plt.show()
 

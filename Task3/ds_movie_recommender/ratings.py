@@ -54,7 +54,6 @@ def partition_data_from_sparse(sm, ratio):
     sm = shuffle_sparse(sm)
 
     test_len = int(sm.data.shape[0] * (1 - ratio))
-
     test_list = np.empty([3, test_len])
     train_list = np.empty([3, sm.data.shape[0] - test_len])
 
@@ -78,10 +77,6 @@ def partition_data_from_sparse(sm, ratio):
     del train_list
     test_matrix = coo_matrix((test_list[2, :], (test_list[0, :].astype(np.uint32), test_list[1, :].astype(np.uint32))))
     del test_list
-
-    test_matrix = coo_matrix((sm.data[:test_len], (sm.row[:test_len].astype(np.uint32), sm.col[:test_len].astype(np.uint32))))
-    train_matrix = coo_matrix((sm.data[test_len:], (sm.row[test_len:].astype(np.uint32), sm.col[test_len:].astype(np.uint32))))
-
     return train_matrix, test_matrix
 
 
@@ -99,40 +94,17 @@ def main():
     # ratings_to_sparse_matrix(data_path)
 
     sparse_matrix = load_npz('{}/{}.npz'.format(data_path, 'sparse_rating_matrix'))
-    # sparse_matrix = remove_rows_with_leq_than_n(sparse_matrix)
     cA = sparse_matrix.tocoo(copy=False)
 
-    # data1, test = partition_data_from_sparse(cA, ratio=0.8)
-    # save_npz('{}/test_ratings.npz'.format(data_path), test)
-    #
-    # train, validation = partition_data_from_sparse(data1, ratio=0.8)
-    # save_npz('{}/train_ratings.npz'.format(data_path), train)
-    # save_npz('{}/validation_ratings.npz'.format(data_path), validation)
+    data1, test = partition_data_from_sparse(cA, ratio=0.8)
+    save_npz('{}/test_ratings.npz'.format(data_path), test)
+
+    train, validation = partition_data_from_sparse(data1, ratio=0.8)
+    save_npz('{}/train_ratings.npz'.format(data_path), train)
+    save_npz('{}/validation_ratings.npz'.format(data_path), validation)
 
     train, validation, test = load_train_validation_test(data_path)
 
-    print(train.row.min())
-    print(train.row.max())
-    print(train.col.min())
-    print(train.col.max())
-    print()
-
-    print(validation.row.min())
-    print(validation.row.max())
-    print(validation.col.min())
-    print(validation.col.max())
-    print()
-
-    print(test.row.min())
-    print(test.row.max())
-    print(test.col.min())
-    print(test.col.max())
-    print()
-
-    print(cA.row.min())
-    print(cA.row.max())
-    print(cA.col.min())
-    print(cA.col.max())
     return train, test, validation
 
 

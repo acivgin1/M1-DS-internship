@@ -1,6 +1,3 @@
-import os
-import time
-
 import numpy as np
 import pandas as pd
 
@@ -12,9 +9,9 @@ class SmartQi:
 
         if read_from_svd_cluster:
             self.load_from_svd_cluster()
-            self.save_smart_qi_data()
+            self.save_smart_qi(qi_norm_to_bool=True)
         else:
-            self.load_smart_qi_data()
+            self.load_smart_qi()
 
         self.movie_list = pd.read_csv('{}/ratings_information/movies.csv'.format(data_path), index_col=0, usecols=[0, 1])
 
@@ -46,12 +43,14 @@ class SmartQi:
         self.qi = self.qi / qi_norm.reshape((-1, 1))
         return
 
-    def save_smart_qi(self):
+    def save_smart_qi(self, qi_norm_to_bool):
+        if qi_norm_to_bool:
+            self.qi_norm = self.qi_norm != 0
         np.savez('{}/qi_params.npz'.format(self.svd_path),
                  mu=self.mu,
                  bi=self.bi,
                  qi=self.qi,
-                 qi_norm=self.qi_norm != 0)
+                 qi_norm=self.qi_norm)
 
     def give_n_recommendations(self, movie_id_list, movie_rating_list=None, n=10):
         print(self.movie_list.loc[movie_id_list])

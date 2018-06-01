@@ -6,17 +6,6 @@ cimport numpy as np
 from matplotlib import pyplot as plt
 
 
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
-
 class SvdCluster:
     def __init__(self, k_order=100, gamma=0.002, beta=0.01, num_of_iters=20, verbose=True, svd_path=None):
         self.k_order = k_order
@@ -49,9 +38,6 @@ class SvdCluster:
 
         self.mu, self.bu, self.bi, self.pu, self.qi = (mu, bu, bi, pu, qi)
 
-        # print(rmse)
-        # print(ortho_dev)
-
         self.rmse_arr = np.append(self.rmse_arr, rmse[0, :])
         self.mae_v_arr = np.append(self.mae_v_arr, rmse[1, :])
         self.rmse_v_arr = np.append(self.rmse_v_arr, rmse[2, :])
@@ -60,9 +46,6 @@ class SvdCluster:
 
         self.pu_dev = np.append(self.pu_dev, ortho_dev[0, :])
         self.qi_dev = np.append(self.qi_dev, ortho_dev[1, :])
-
-    def svd_predict_dataset(self, T):
-        return _svd_predict_dataset(T, self.mu, self.bu, self.bi, self.pu, self.qi)
 
     def svd_predict(self, u, i):
         return _svd_predict(u, i, self.mu, self.bu, self.bi, self.pu, self.qi)
@@ -105,8 +88,7 @@ class SvdCluster:
 
     def save_svd_params(self):
         np.savez('{}/svd_params.npz'.format(self.svd_path),
-                 mu=self.mu,
-                 bu=self.bu, bi=self.bi, pu=self.pu, qi=self.qi,
+                 mu=self.mu, bu=self.bu, bi=self.bi, pu=self.pu, qi=self.qi,
                  pu_dev=self.pu_dev, qi_dev=self.qi_dev,
                  rmse_arr=self.rmse_arr, rmse_v_arr=self.rmse_v_arr, mae_v_arr=self.mae_v_arr,
                  rmse_t_arr=self.rmse_t_arr, mae_t_arr=self.mae_t_arr)
@@ -129,34 +111,6 @@ class SvdCluster:
         self.rmse_t_arr = loadz['rmse_t_arr']
         self.mae_t_arr = loadz['mae_t_arr']
 
-    def reduce_movie_vector(self, movie_id_list, movie_rating_list=None):
-        '''
-        Given a movie id list (unsorted) and an optional movie rating_list, coresponding to the movie ids, this method
-        returns a reduced movie vector with rank k
-
-        It performs ru * Qi
-        :param movie_id_list: np.ndarray[np.double_t, ndim=1] An unsorted movie id list
-        :param movie_rating_list: np.ndarray[np.double_t, ndim=1] Corresponding movie ratings if provided by the user
-        :return:
-        '''
-        ru = np.zeros(self.qi.shape[0], dtype=np.double)
-        if movie_rating_list is None:
-            ru[movie_id_list] = self.mu + self.bi[movie_id_list]
-        else:
-            ru[movie_id_list] = movie_rating_list
-        return np.dot(ru, self.qi)
-
-    def top_n_recommendations(self, movie_id_list, movie_rating_list=None, n=10):
-        ru = self.reduce_movie_vector(movie_id_list-1, movie_rating_list)
-        cosine = np.dot(ru, self.qi.transpose())/np.linalg.norm(ru)
-
-        qi_norm = np.linalg.norm(self.qi, axis=1)
-        cosine[np.argwhere(qi_norm == 0)] = 0
-        qi_norm[np.argwhere(qi_norm == 0)] = 1
-        cosine /= qi_norm
-        return cosine.argsort()[-n:][::-1]+1
-
-
     def give_recommendations_for_user(self, u):
         return np.dot(self.pu[u], self.qi.transpose()) + self.mu + self.bu[u] + self.bi
 
@@ -175,8 +129,8 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
     cdef np.ndarray[np.double_t] bu, bi
 
     cdef int u, i, k
-    cdef double mean, std_dev, one_minus_gb, mu
-    cdef double r, r_hat, error, cum_error, cum_t_error, cum_v_error
+    cdef double mean, std_dev, one_minus_gb
+    cdef double mu, r, r_hat, error, cum_error, cum_t_error, cum_v_error
     cdef double dot, puk, qik, _puk
     cdef double rmse, rmse_t, mae_t, rmse_v, mae_v
 
@@ -231,11 +185,9 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
                 qik += error*_puk
                 qi[i, k] = qik
 
-
         rmse = np.sqrt(cum_error/R.data.shape[0])
 
         if iteration % print_step_size == 0:
-            # Fadile oprosti
             mae_v = 0
             cum_v_error = 0
             for u, i, r in zip(V.row, V.col, V.data):
@@ -306,30 +258,6 @@ def _svd_train(R, V, T, int k_order, double gamma, double beta, int num_of_iters
 
 @cython.boundscheck(False) # turn off bounds-checking for entire function
 @cython.wraparound(False)  # turn off negative index wrapping for entire function
-cdef _svd_predict_dataset(T, mu,
-                          np.ndarray[np.double_t] bu, np.ndarray[np.double_t] bi,
-                          np.ndarray[np.double_t, ndim=2] pu, np.ndarray[np.double_t, ndim=2] qi):
-    cdef int k
-    cdef double mae_t, cum_t_error, r_hat, error, dot
-    mae_t = 0
-    cum_t_error = 0
-    for u, i, r in zip(T.row, T.col, T.data):
-        dot = 0
-        for k in range(qi.shape[1]):
-            dot += pu[u, k] * qi[i, k]
-        r_hat = mu + bu[u] + bi[i] + dot
-        error = r - r_hat
-        mae_t += abs(error)
-
-        error *= error
-        cum_t_error += error
-    mae_t = mae_t/T.data.shape[0]
-    rmse_t = np.sqrt(cum_t_error/T.data.shape[0])
-    return mae_t, rmse_t
-
-
-@cython.boundscheck(False) # turn off bounds-checking for entire function
-@cython.wraparound(False)  # turn off negative index wrapping for entire function
 def _svd_predict(u, i, mu,
                  np.ndarray[np.double_t] bu, np.ndarray[np.double_t] bi,
                  np.ndarray[np.double_t, ndim=2] pu, np.ndarray[np.double_t, ndim=2] qi):
@@ -351,6 +279,5 @@ def deviation_from_ortho(np.ndarray[np.double_t, ndim=2] M, size=1000):
     return np.abs(mask*(np.dot(extract, extract.transpose()))).sum()/size/size
 
 
-print bcolors.OKGREEN + 'BUILD[' + bcolors.WARNING + 'SUCCESS' + bcolors.OKGREEN + '] svd_clustering.pyx' + bcolors.ENDC
 if __name__ == '__main__':
     print('Hello')
