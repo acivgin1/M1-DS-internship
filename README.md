@@ -1,3 +1,4 @@
+
 # ABH DS internship
 During the three months of the internship the goal was to solve
 different tasks ranging from classical data science methods, to newer
@@ -6,16 +7,26 @@ datasets, handle preprocessing of data and cross-validating, training
 and testing different models.
 
 ## Table of contents
-1. [Month 1 - Task 2 (Titanic dataset)](#m1t2)
-    1.1 [Solution](#sol)
-2. [Month 1 - Task 3 (Movie recommender)](#m1t3)
-## Month 1 - Task 2 (Titanic dataset)
-
+1. [Month 1 Task 2](#month-1-task-2)
+	1. [Solution](#solution)
+	    1. [Create new datasets](#create-new-datasets)
+	    2. [Visualise dataset](#visualise-dataset)
+	    3. [Titanic classification](#titanic-classification)
+	2. [Results](#results)
+		 1. [Model parameters](#model-parameters)
+		 2. [Model results](#model-results)
+	3. [Prerequisites](#prerequisites)
+	4. [Installing](#installing)
+2. [Month 1 Task 3](#month-1-task-3)
+3. [Authors](#authors)
+4. [License](#license)
+5. [Acknowledgments](#acknowledgments)
+## Month 1 Task 2
 The task is to perform binary classification on the Titanic dataset,
 given passenger data that includes:
 * Passenger's surname, title, name (full name of spouse) - `Name`,
 * Passenger's sex - `Sex`,
-* Passenger class - `PClass`,
+* Passenger's class - `PClass`,
 * Passenger's age - `Age`.
 
 And using this data to predict whether or not the passenger has
@@ -535,7 +546,7 @@ Of course, any of these arguments may be omitted but be careful not to
 exclude the -tmodels arg if there are no pretrained models available in
 the `/Data/Pickles` folder.
 
-## Month 1 - Task 3 (Movie recommender)
+## Month 1 Task 3
 
 
 ## Authors
