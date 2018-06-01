@@ -9,10 +9,14 @@ data_path = os.path.relpath('../Data', cur_path)
 imdb_path = '{}/imdb_movie_information'.format(data_path)
 movielens_path = '{}/ratings_information'.format(data_path)
 
-imdb_df = pd.read_csv('{}/title.basics.tsv'.format(imdb_path), usecols=[0, 3], sep='\t')
-imdb_df['originalTitle'] = imdb_df['originalTitle'].str.strip()
-imdb_df['imdbId'] = imdb_df['tconst'].apply(lambda x: int(re.findall('\\d{7}', x)[0]))
+imdb_df = pd.read_csv('{}/title.basics.tsv'.format(imdb_path), usecols=[0, 2, 5], sep='\t', converters={'startYear': str})
 
+imdb_df['primaryTitle'] = imdb_df['primaryTitle'].str.strip()
+imdb_df['primaryTitle'] = imdb_df['primaryTitle'].str.cat(imdb_df['startYear'].tolist(), sep=' (')
+imdb_df['primaryTitle'] = imdb_df['primaryTitle'] + ')'
+del imdb_df['startYear']
+
+imdb_df['imdbId'] = imdb_df['tconst'].apply(lambda x: int(re.findall('\\d{7}', x)[0]))
 del imdb_df['tconst']
 
 imdb_df.set_index('imdbId', inplace=True)

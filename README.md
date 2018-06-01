@@ -5,6 +5,10 @@ ones, including sparse SVD, etc. To deal with larger, as well as smaller
 datasets, handle preprocessing of data and cross-validating, training
 and testing different models.
 
+## Table of contents
+1. [Month 1 - Task 2 (Titanic dataset)](#m1t2)
+    1.1 [Solution](#sol)
+2. [Month 1 - Task 3 (Movie recommender)](#m1t3)
 ## Month 1 - Task 2 (Titanic dataset)
 
 The task is to perform binary classification on the Titanic dataset,
@@ -532,6 +536,8 @@ exclude the -tmodels arg if there are no pretrained models available in
 the `/Data/Pickles` folder.
 
 ## Month 1 - Task 3 (Movie recommender)
+
+
 ## Authors
 
 **Amar Civgin**

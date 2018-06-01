@@ -66,5 +66,5 @@ if __name__ == '__main__':
     data_path = os.path.relpath('../Data', cur_path)
 
     smartqi = SmartQi(data_path)
-    smartqi.give_n_recommendations([122904, 122918], [10, -5])
+    smartqi.give_n_recommendations([63588, 1, 2])
 
