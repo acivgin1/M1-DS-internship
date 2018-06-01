@@ -26,7 +26,7 @@ The task is to perform binary classification on the Titanic dataset,
 given passenger data that includes:
 * Passenger's surname, title, name (full name of spouse) - `Name`,
 * Passenger's sex - `Sex`,
-* Passenger class - `PClass`,
+* Passenger's class - `PClass`,
 * Passenger's age - `Age`.
 
 And using this data to predict whether or not the passenger has
