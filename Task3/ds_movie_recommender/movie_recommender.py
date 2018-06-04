@@ -52,7 +52,7 @@ class SmartQi:
                  qi=self.qi,
                  qi_norm=self.qi_norm)
 
-    def give_n_recommendations(self, movie_id_list, movie_rating_list=None, n=10):
+    def give_n_recommendations(self, movie_id_list, movie_rating_list=None, n=10, verbose=False):
         if not np.isin(movie_id_list, self.movie_list.index).all():
             missing_ids = np.setdiff1d(movie_id_list, self.movie_list.index)
             print('Missing ids are:\n{}'.format(missing_ids))
@@ -61,14 +61,18 @@ class SmartQi:
                 print('There are no movies to search for.')
                 return np.array([])
 
-        print(self.movie_list.loc[movie_id_list])
+        if verbose:
+            print(self.movie_list.loc[movie_id_list])
+
         movie_id_list = np.array(movie_id_list)
         if movie_rating_list is not None:
             movie_rating_list = np.array(movie_rating_list)
 
         recommended_movie_id_list = self.top_n_recommendations(movie_id_list, movie_rating_list, 3*n)
         recommended_movies = self.movie_list.reindex(recommended_movie_id_list).dropna()
-        print(recommended_movies.iloc[:n])
+
+        if verbose:
+            print(recommended_movies.iloc[:n])
         return recommended_movies.iloc[:n]
 
     def top_n_recommendations(self, movie_id_list, movie_rating_list, n):

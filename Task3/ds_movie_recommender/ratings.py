@@ -6,7 +6,7 @@ from tqdm import tqdm
 from scipy.sparse import csr_matrix, coo_matrix
 from scipy.sparse import save_npz, load_npz
 
-from visualizations import ratings_per_row, average_ratings_per_row
+from .visualizations import ratings_per_row, average_ratings_per_row
 
 
 def ratings_to_sparse_matrix(data_path):

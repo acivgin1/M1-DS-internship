@@ -1,11 +1,11 @@
 import os
 
 import numpy as np
-from ratings import load_train_validation_test
+from .ratings import load_train_validation_test
 import pyximport; pyximport.install()
-from svd_clustering import SvdCluster
+from .svd_clustering import SvdCluster
 
-from movie_recommender import SmartQi
+from .movie_recommender import SmartQi
 
 GAMMA_LIST = [0.006, 0.005]
 BETA_LIST = [0.06, 0.05, 0.04]
