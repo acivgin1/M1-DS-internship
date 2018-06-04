@@ -68,12 +68,13 @@ class SmartQi:
         if movie_rating_list is not None:
             movie_rating_list = np.array(movie_rating_list)
 
-        recommended_movie_id_list = self.top_n_recommendations(movie_id_list, movie_rating_list, 3*n)
-        recommended_movies = self.movie_list.reindex(recommended_movie_id_list).dropna()
+        recommended_movie_id_list = self.top_n_recommendations(movie_id_list, movie_rating_list, n + movie_id_list.size)
+        recommended_movie_id_list = np.setdiff1d(recommended_movie_id_list, movie_id_list)
 
         if verbose:
+            recommended_movies = self.movie_list.reindex(recommended_movie_id_list[:n]).dropna()
             print(recommended_movies.iloc[:n])
-        return recommended_movies.iloc[:n]
+        return recommended_movie_id_list[:n]
 
     def top_n_recommendations(self, movie_id_list, movie_rating_list, n):
         pu = self.reduce_movie_vector(movie_id_list - 1, movie_rating_list)
