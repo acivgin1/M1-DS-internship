@@ -82,7 +82,13 @@ def get_movie_list():
     return SMARTQI.movie_list.to_json()
 
 
-if __name__ == '__main__':
-    smartqi = SmartQi(DATA_PATH)
+@app.route('/')
+def help():
+    help_string = 'You seem to be lost. If you want to get the movie list, go to /api/movies.' \
+                  '\nIf you want to get movie recommedations go to /api/recommendations and give me a json file' \
+                  'with attributes movie_id_list, moviedb, and optionally movie_rating_list, number_of_movies.'
+    return(help_string)
 
-    app.run(debug=True)
+
+if __name__ == '__main__':
+    app.run()
